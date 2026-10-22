@@ -13,8 +13,9 @@ const CSP = [
   "script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com unpkg.com analytics.devlab502.net static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline' fonts.googleapis.com cdnjs.cloudflare.com",
   "font-src fonts.gstatic.com",
-  "img-src 'self' data: blob: api.mapbox.com *.tiles.mapbox.com tiles.openfreemap.org",
-  "connect-src 'self' api.mapbox.com *.tiles.mapbox.com events.mapbox.com tiles.openfreemap.org analytics.devlab502.net cloudflareinsights.com static.cloudflareinsights.com",
+  // s3.amazonaws.com: Terrarium elevation tiles for the hillshade layer.
+  "img-src 'self' data: blob: api.mapbox.com *.tiles.mapbox.com tiles.openfreemap.org s3.amazonaws.com",
+  "connect-src 'self' api.mapbox.com *.tiles.mapbox.com events.mapbox.com tiles.openfreemap.org s3.amazonaws.com analytics.devlab502.net cloudflareinsights.com static.cloudflareinsights.com",
   "worker-src blob:",
   "child-src blob:",
   "frame-ancestors 'none'",

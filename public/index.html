@@ -261,6 +261,7 @@
     <label class="check"><input type="checkbox" id="l-country" checked> Country arcs (zoomed out)</label>
     <label class="check"><input type="checkbox" id="l-labels" checked> Hub labels (zoomed in)</label>
     <label class="check"><input type="checkbox" id="l-flows" checked> Region-to-region flows</label>
+    <label class="check"><input type="checkbox" id="l-relief" checked> Terrain relief (hillshade)</label>
     <div class="section-label">Region fill</div>
     <select id="fill">
       <option value="none">None</option>
@@ -376,7 +377,7 @@ const CNAME = {AT:'Austria',BE:'Belgium',BG:'Bulgaria',CH:'Switzerland',CZ:'Czec
 
 // ---------- state ----------
 const S = { year:'19', metric:'tons', country:'', xborder:false, minPct:0, basemap:MB_TOKEN ? 'decimal' : 'night', flowstyle:'route', palette:'ember', basePalette:'ember',
-  layers:{network:true, regions:true, country:true, labels:true, flows:true}, fill:'none', animate:true, speed:2, selected:null, selectedEdge:null, chapter:0, zoom:4, time:0 };
+  layers:{network:true, regions:true, country:true, labels:true, flows:true, relief:true}, fill:'none', animate:true, speed:2, selected:null, selectedEdge:null, chapter:0, zoom:4, time:0 };
 // Chrome theme follows the base map: dark bases get the control-panel chrome, light bases the vintage paper chrome.
 const THEME_OF = { decimal:'panel', night:'panel' };
 function applyTheme() { document.body.dataset.theme = THEME_OF[BASEMAPS[S.basemap].pal] || 'paper'; }
@@ -453,12 +454,28 @@ function initMap() {
   map.once('load', () => { document.getElementById('loading').style.display = 'none'; render(); setChapter(0, false); showIntro(); });
   map.once('idle', () => { document.getElementById('loading').style.display = 'none'; });
   // Decimal's own roads are the same mint as our load layer: pull them back so the data reads on top.
-  map.on('style.load', () => { if (S.basemap !== 'decimal') return;
-    ['road-simple', 'bridge-simple', 'tunnel-simple', 'road-path', 'bridge-path'].forEach(id => { if (map.getLayer(id)) map.setPaintProperty(id, 'line-opacity', .45); }); });
+  map.on('style.load', () => { if (S.basemap === 'decimal')
+    ['road-simple', 'bridge-simple', 'tunnel-simple', 'road-path', 'bridge-path'].forEach(id => { if (map.getLayer(id)) map.setPaintProperty(id, 'line-opacity', .45); });
+    applyRelief(); });
   map.on('zoom', () => { S.zoom = map.getZoom(); zoomBadge(); render(); });
   map.on('click', e => { const p = overlay.pickObject({x:e.point.x, y:e.point.y, radius:4}); if (!p) select(null); });
   requestAnimationFrame(animate);
 }
+// ---------- terrain relief ----------
+// Hillshade from the public Terrarium elevation tiles (Mapzen / AWS Open Data), slotted under the base map's roads and
+// labels but over its land fills, so water still masks it. On dark bases the lit slopes glow in the base's own mint.
+const DEM = { type:'raster-dem', tiles:['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'], encoding:'terrarium', tileSize:256, maxzoom:13, attribution:'Terrain: Mapzen terrain tiles via AWS Open Data' };
+function reliefPaint() { const dark = document.body.dataset.theme === 'panel';
+  return dark ? { 'hillshade-shadow-color':'#000000', 'hillshade-highlight-color':'#9cfcd2', 'hillshade-accent-color':'#102a1f', 'hillshade-exaggeration':.8, 'hillshade-illumination-direction':335, 'hillshade-illumination-anchor':'viewport' }
+              : { 'hillshade-shadow-color':'#4a3f33', 'hillshade-highlight-color':'#ffffff', 'hillshade-accent-color':'#8b7b6a', 'hillshade-exaggeration':.45, 'hillshade-illumination-direction':335, 'hillshade-illumination-anchor':'viewport' }; }
+function applyRelief() { let st; try { st = map && map.getStyle(); } catch (e) { return; } if (!st || !st.layers) return;   // style JSON present (isStyleLoaded() is still false during 'style.load')
+  const has = map.getLayer('relief');
+  if (!S.layers.relief) { if (has) map.removeLayer('relief'); return; }
+  if (!map.getSource('dem')) map.addSource('dem', DEM);
+  if (has) { Object.entries(reliefPaint()).forEach(([k, v]) => map.setPaintProperty('relief', k, v)); return; }
+  const before = map.getStyle().layers.find(l => l.type === 'line' || l.type === 'symbol');
+  map.addLayer({ id:'relief', type:'hillshade', source:'dem', paint:reliefPaint() }, before && before.id); }
+
 // ---------- first-visit intro ----------
 const INTRO_KEY = 'intransit-intro-seen';
 function showIntro() {
@@ -689,8 +706,8 @@ function buildStory() {
       cam:{center:[8.5, 49.5], zoom:4.0, pitch:0, bearing:0}, set:{flowstyle:'route', year:'19', metric:'tons', layers:{network:true, regions:true, country:true, labels:true, flows:true}, country:''} },
     { n:'Chapter 2', h:'Where the highway is busiest', p:'Highway load is drawn from the same flows, routed over the E-road network. The brightest segment carries more than <b>'+fmtN(busiest.t19/365)+' trucks a day</b>. Hover any segment to read its load.', num:fmtN(busiest.t19), cap:'trucks per year on the busiest '+busiest.km+' km of E-road',
       cam:{center:bN, zoom:7.2, pitch:45, bearing:-15}, set:{flowstyle:'route', year:'19', metric:'trucks', layers:{network:true, regions:false, country:false, labels:true, flows:false}, country:''} },
-    { n:'Chapter 3', h:'Crossing the Alps', p:'Italy trades with Germany, Switzerland, Austria and France across a handful of passes. Switch the measure to cost and the same lanes re-rank: long, slow, expensive.', num:fmtE(alpCost), cap:'illustrative yearly freight bill for '+fmtT(alpTons)+' crossing the Alps in the top lanes',
-      cam:{center:[10.2, 46.4], zoom:6.0, pitch:55, bearing:10}, set:{flowstyle:'arc', year:'19', metric:'cost', layers:{network:true, regions:true, country:false, labels:true, flows:true}, country:'IT'} },
+    { n:'Chapter 3', h:'Crossing the Alps', p:'Italy trades with Germany, Switzerland, Austria and France across a handful of passes, and the relief shows why the lanes bunch where they do. Switch the measure to cost and the same lanes re-rank: long, slow, expensive.', num:fmtE(alpCost), cap:'illustrative yearly freight bill for '+fmtT(alpTons)+' crossing the Alps in the top lanes',
+      cam:{center:[10.2, 46.4], zoom:6.0, pitch:55, bearing:10}, set:{flowstyle:'arc', year:'19', metric:'cost', layers:{network:true, regions:false, country:false, labels:true, flows:true, relief:true}, country:'IT'} },
     { n:'Chapter 4', h:'East meets West', p:'The fastest-growing big lanes run between Poland and Germany. Warm lanes grow faster than the European average by 2030, cool lanes slower.', num:'+'+Math.round(plde.g*100)+'%', cap:'growth 2019 → 2030, Poland → Germany ('+fmtT(plde.t19)+' → '+fmtT(plde.t30)+')',
       cam:{center:[15.5, 52.0], zoom:5.4, pitch:30, bearing:0}, set:{flowstyle:'route', palette:'change', year:'30', metric:'tons', layers:{network:false, regions:true, country:false, labels:true, flows:true}, country:''} },
     { n:'Chapter 5', h:'Watch it move', p:'Each streak is traffic on one of the top routed lanes, moving at a uniform pace along its real E-road path. Speed is set in the Design tab. The longest big lane runs <b>'+longest.dist+' km</b> from '+shortName(R[longest.o].name)+' to '+shortName(R[longest.d].name)+'.', num:'+'+Math.round(total30*100)+'%', cap:'more tonnes on the road by 2030 across all 1.5 million flows',
@@ -709,7 +726,7 @@ function setChapter(i, fly = true) { S.chapter = i; const c = D.story[i];
   setTimeout(() => { plate.innerHTML = `<div class="cart-h"><span class="orn">❖</span> Chapter ${ROMAN[i]} <span class="orn">❖</span></div><h4>${c.h}</h4><div class="num">${c.num}</div><div class="cap">${c.cap}</div>`; plate.classList.add('show'); }, fly ? 450 : 0);
   document.querySelectorAll('.chapter').forEach((el, j) => el.classList.toggle('active', j === i));
   const active = document.querySelector('.chapter.active'); if (active && fly) active.scrollIntoView({behavior:'smooth', block:'nearest'});
-  Object.assign(S, c.set); S.layers = {...c.set.layers}; S.palette = c.set.palette || S.basePalette; document.getElementById('country').value = c.set.country || ''; syncUI();
+  Object.assign(S, c.set); S.layers = {...c.set.layers, relief: c.set.layers.relief ?? S.layers.relief}; S.palette = c.set.palette || S.basePalette; document.getElementById('country').value = c.set.country || ''; syncUI(); applyRelief();
   if (fly) map.flyTo({...c.cam, speed:.7, curve:1.4}); else map.jumpTo(c.cam);
   tip.style.display = 'none'; select(null); }
 
@@ -723,6 +740,7 @@ document.getElementById('country').onchange = e => { S.country = e.target.value;
 document.getElementById('xborder').onchange = e => { S.xborder = e.target.checked; render(); };
 document.getElementById('mintons').oninput = e => { S.minPct = +e.target.value; document.getElementById('mintons-val').textContent = S.minPct ? '≥ ' + fmtT(D.minT + (D.maxT - D.minT)*Math.pow(S.minPct/100, 2)) : 'any'; render(); };
 ['network','regions','country','labels','flows'].forEach(k => document.getElementById('l-' + k).onchange = e => { S.layers[k] = e.target.checked; render(); });
+document.getElementById('l-relief').onchange = e => { S.layers.relief = e.target.checked; applyRelief(); };
 document.getElementById('fill').onchange = e => { S.fill = e.target.value; render(); };
 document.getElementById('l-animate').onchange = e => S.animate = e.target.checked;
 document.getElementById('speed').oninput = e => { S.speed = +e.target.value; document.getElementById('speed-val').textContent = S.speed; };
