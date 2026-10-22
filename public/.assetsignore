@@ -1,0 +1,2 @@
+# never upload the local-only Mapbox dev token with the static assets
+dev-token.js
