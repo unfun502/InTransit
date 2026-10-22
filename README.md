@@ -52,8 +52,11 @@ The raw flow file is 2.8 GB (1.5 million region-to-region flows with routed E-ro
 | `regions.geojson` | NUTS-3 2016 polygons (GISCO, 1:10M) spatially joined to the region centroids; 1,430 polygons covering 1,500 regions, the rest (RU, UA, Balkans, MA) have no NUTS geometry |
 | `commodity.json` | Eurostat `road_go_na_rl3g` 2019: tonnes loaded per NUTS-3 by NST 2007 goods group, collapsed to seven families |
 | `edge_profiles.json` | Per highway segment, from all 1.5M flows: total tonnes, tonnes by origin country (top 6), top 5 lanes. Loaded on first segment click |
+| `sea.json` | Eurostat `mar_go_am_<cc>` 2019 for 25 reporting countries: main ports (coordinates from UN/LOCODE, gaps geocoded), inbound/outbound tonnes by cargo type, and port-to-partner-area lanes routed over sea lanes with `searoute`. Partners are coastal areas, so each lane ends at a hand-picked anchor port (`scripts/sea_anchors.py`) |
 
-The scripts that build these live in `scripts/` (`prep.py` and `fixpaths.py` for the Fraunhofer cut, `polygons.py`, `commodity.py`, `profiles.py`). Sources go in `_dl/` (git-ignored): the Fraunhofer zip, GISCO NUTS GeoJSON, and the Eurostat SDMX-CSV export.
+The scripts that build these live in `scripts/` (`prep.py` and `fixpaths.py` for the Fraunhofer cut, `polygons.py`, `commodity.py`, `profiles.py`, and `sea_decode.py` + `sea_build.py` for the maritime layer, which needs `pip install searoute`). Sources go in `_dl/` (git-ignored): the Fraunhofer zip, GISCO NUTS GeoJSON, the Eurostat exports and the UN/LOCODE list.
+
+Sea passage time and freight bill are illustrative, like the road ones: route km at 14 knots, and tonnes × km × a flat €/tonne-km.
 
 Cost (€) and transit days shown in the app are illustrative estimates layered on top of the data: tonnes × km × a per-country rate, and km ÷ driving speed ÷ hours per day plus border allowances. They are there to show the treatment, not to be quoted.
 

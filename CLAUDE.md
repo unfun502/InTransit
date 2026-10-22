@@ -20,7 +20,7 @@ intransit.devlab502.net (custom domain on Workers, declared in `wrangler.toml`)
 - Keyless fallbacks in `public/styles/` run on OpenFreeMap tiles.
 
 ## Data
-`public/data/*.json` is a prepped subset of the 2.8 GB Fraunhofer flow file (see README for the cut and the prep scripts' logic). Raw downloads live in `_dl/` (git-ignored). Cost (€) and transit days are illustrative formulas, not data.
+`public/data/*.json` is a prepped subset of the 2.8 GB Fraunhofer flow file plus NUTS-3 polygons (GISCO), Eurostat commodity mix, per-segment corridor profiles and the maritime layer (Eurostat port tonnage by partner sea area, routed with `searoute`). See README for each file and the scripts in `scripts/`. Raw downloads live in `_dl/` (git-ignored). Cost (€) and transit days, road and sea, are illustrative formulas, not data.
 
 ## Environment variables
 None required. Optional Worker var `UMAMI_SITE_ID` enables analytics injection.
