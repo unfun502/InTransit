@@ -17,8 +17,18 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Deploy
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Cloudflare's asset upload occasionally fails with a transient API error (401 / "unknown error")
+      # and succeeds on a re-run, so retry the deploy up to three times with a pause between attempts.
+      - name: Deploy (with retry)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::wrangler deploy, attempt $attempt"
+            if npx wrangler deploy; then echo "::endgroup::"; exit 0; fi
+            echo "::endgroup::"
+            echo "attempt $attempt failed"
+            [ "$attempt" -lt 3 ] && sleep $((attempt * 30))
+          done
+          echo "deploy failed after 3 attempts"; exit 1
