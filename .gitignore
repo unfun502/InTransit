@@ -1,0 +1,11 @@
+node_modules/
+.wrangler/
+.dev.vars*
+!.dev.vars.example
+.DS_Store
+*.log
+# raw downloads (150 MB Fraunhofer zip, gallery style dumps); regenerate with the prep notes in README
+_dl/
+
+# local-only Mapbox dev token (unrestricted); production uses the restricted token in index.html
+public/dev-token.js

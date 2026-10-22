@@ -1,0 +1,12 @@
+{
+  "name": "intransit",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node server.js 5186",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.151.1"
+  }
+}

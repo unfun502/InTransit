@@ -1,0 +1,15 @@
+name = "intransit"
+main = "worker.js"
+compatibility_date = "2025-02-16"
+workers_dev = false
+
+# Custom domain (wrangler creates the DNS record in the devlab502.net zone on first deploy).
+routes = [{ pattern = "intransit.devlab502.net", custom_domain = true }]
+
+# Workers Static Assets (fleet standard, not legacy Workers Sites). Every request runs through
+# worker.js so it can add security headers and no-cache HTML. Not a SPA: unknown paths 404.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "none"
+run_worker_first = true

@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>In Transit</title>
+<meta name="description" content="In Transit: goods on the move, mapped. First chapter: 1.5 million modeled road-freight flows between 1,675 European regions.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://intransit.devlab502.net/">
+<meta property="og:title" content="In Transit">
+<meta property="og:description" content="Goods on the move, mapped. 1.5 million European truck journeys as an interactive, layered map with cost, time and a story to follow.">
+<meta property="og:image" content="https://intransit.devlab502.net/og.jpg">
+<meta property="og:image:width" content="800">
+<meta property="og:image:height" content="420">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="In Transit">
+<meta name="twitter:description" content="Goods on the move, mapped. 1.5 million European truck journeys as an interactive, layered map.">
+<meta name="twitter:image" content="https://intransit.devlab502.net/og.jpg">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Josefin+Sans:wght@300;400;600;700&family=DM+Sans:wght@400;500;600&family=Roboto+Condensed:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js"></script>
+<script src="https://unpkg.com/deck.gl@9.0.38/dist.min.js"></script>
+<script>if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) document.write('<script src="dev-token.js"><\/script>');</script>
+<style>
+  :root {
+    --cream:#f2ead8; --cream-2:#faf6ee; --ink:#2a241e; --ink-2:#3b322a; --ink-3:#5a4f42;
+    --gold:#c4a44a; --gold-2:#8b6914; --tan:#c49a6a; --rust:#d4523a; --green:#3a6b4a;
+    --oil-red:#d14747; --oil-blue:#31339e; --muted:#9a8b72; --line:#c4b99a;
+    --sidebar:400px;
+    /* faint paper grain, used on the sidebar and every cartouche */
+    --paper:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .25 0 0 0 0 .18 0 0 0 0 .08 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  /* cartouche: cream card with a double gold rule, shared by legend, tooltip, selection and the map plate */
+  .cartouche { background:var(--cream-2) var(--paper); border:1px solid var(--gold-2); border-radius:2px; box-shadow:0 0 0 3px var(--cream-2), 0 0 0 4px var(--gold-2), 0 8px 24px rgba(42,36,30,.22); }
+  .cart-h { display:flex; align-items:center; gap:8px; font-family:'Josefin Sans',sans-serif; font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:var(--gold-2); white-space:nowrap; }
+  .cart-h::before, .cart-h::after { content:''; flex:1; border-top:1px solid var(--gold-2); opacity:.7; }
+  .cart-h .orn { color:var(--rust); font-size:10px; }
+
+  /* ---------- "panel" theme: dark control-panel chrome tuned to the Decimal base (black, mint phosphor, ember) ---------- */
+  body[data-theme="panel"] {
+    --cream:#070a09; --cream-2:#0d1310; --ink:#d6f5e6; --ink-2:#030504; --ink-3:#8fc4ad;
+    --gold:#60d29f; --gold-2:#2f7f5e; --tan:#ff8a3d; --rust:#ff8a3d; --green:#28815c; --oil-blue:#60d29f;
+    --muted:#5f8a77; --line:#1b3328;
+    --paper:repeating-linear-gradient(0deg, rgba(96,210,159,.045) 0 1px, transparent 1px 4px);
+  }
+  body[data-theme="panel"] #map { background:#000; }
+  body[data-theme="panel"] .sidebar-header h1 { color:#dffcee; font-family:'Roboto Condensed',sans-serif; text-transform:uppercase; letter-spacing:1px; font-size:32px; }
+  body[data-theme="panel"] .sidebar-header h1 em { font-style:normal; color:var(--rust); }
+  body[data-theme="panel"] .sidebar-header h2, body[data-theme="panel"] .sidebar-header p, body[data-theme="panel"] .section-label, body[data-theme="panel"] .tab,
+  body[data-theme="panel"] .cart-h, body[data-theme="panel"] .tile .k, body[data-theme="panel"] .chapter .n, body[data-theme="panel"] .tooltip .tag,
+  body[data-theme="panel"] .legend .h, body[data-theme="panel"] .zoombadge span, body[data-theme="panel"] .insight .cap, body[data-theme="panel"] .plate .cap,
+  body[data-theme="panel"] .range-val, body[data-theme="panel"] .legend .mm { font-family:'IBM Plex Mono',monospace; font-style:normal; }
+  body[data-theme="panel"] .chapter h3, body[data-theme="panel"] .plate h4, body[data-theme="panel"] .tooltip .t, body[data-theme="panel"] .selbox .t, body[data-theme="panel"] .tile .v
+    { font-family:'Roboto Condensed',sans-serif; text-transform:uppercase; letter-spacing:.6px; }
+  body[data-theme="panel"] .insight .num, body[data-theme="panel"] .plate .num { font-family:'Roboto Condensed',sans-serif; font-style:normal; font-weight:700; letter-spacing:-.5px; text-shadow:0 0 12px rgba(255,138,61,.45); }
+  body[data-theme="panel"] .decorative-bar { height:6px; background-color:#030504; background-image:repeating-linear-gradient(90deg, var(--gold) 0 2px, transparent 2px 12px, var(--rust) 12px 14px, transparent 14px 24px); }
+  body[data-theme="panel"] .pill { background:#0a100d; }
+  body[data-theme="panel"] .pill.on { background:var(--gold); color:#041009; border-color:var(--gold); box-shadow:0 0 10px rgba(96,210,159,.35); }
+  body[data-theme="panel"] .seg .pill.on { box-shadow:none; }
+  body[data-theme="panel"] .bar .trk { background:#15241d; }
+  body[data-theme="panel"] .tooltip .r { border-bottom-color:#1b3328; }
+  body[data-theme="panel"] .chapter { background:var(--cream-2) var(--paper); }
+  body[data-theme="panel"] .chapter.active { background:#0f1a15; box-shadow:0 0 0 3px var(--cream-2), 0 0 0 4px var(--gold-2), 0 0 18px rgba(96,210,159,.2); }
+  body[data-theme="panel"] .cartouche { box-shadow:0 0 0 3px var(--cream-2), 0 0 0 4px var(--gold-2), 0 0 22px rgba(96,210,159,.18), 0 10px 28px rgba(0,0,0,.6); }
+  body[data-theme="panel"] .zoombadge span { background:#0d1310; color:var(--gold); box-shadow:0 0 0 1px var(--gold-2); }
+  body[data-theme="panel"] .legend .ramp { border-color:rgba(96,210,159,.35); }
+  body[data-theme="panel"] .sidebar { border-right-color:var(--gold-2); }
+  body[data-theme="panel"] select, body[data-theme="panel"] select option { background-color:#0a100d; color:var(--ink); }
+  body[data-theme="panel"] .tabs { background:#050706; }
+  body[data-theme="panel"] .loading { color:var(--gold); font-family:'IBM Plex Mono',monospace; }
+  body[data-theme="panel"] .maplibregl-ctrl-group { background:#0d1310; box-shadow:0 0 0 1px var(--gold-2); }
+  body[data-theme="panel"] .maplibregl-ctrl-group button + button { border-top-color:var(--line); }
+  body[data-theme="panel"] .maplibregl-ctrl button .maplibregl-ctrl-icon { filter:invert(1) sepia(1) saturate(3) hue-rotate(100deg); }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; }
+  body { font-family:'DM Sans',sans-serif; background:var(--ink); color:#e8dfd0; overflow:hidden; }
+  #map { position:absolute; top:0; left:var(--sidebar); right:0; bottom:0; background:#efe6d0; }
+
+  /* ---------- sidebar ---------- */
+  .sidebar { position:absolute; left:0; top:0; bottom:0; width:var(--sidebar); z-index:10; background:var(--cream) var(--paper); border-right:3px solid var(--gold-2); display:flex; flex-direction:column; }
+  .sidebar-header { padding:26px 24px 18px; background:var(--ink-2); }
+  .sidebar-header h2 { font-family:'Josefin Sans',sans-serif; font-weight:300; font-size:12px; letter-spacing:5px; text-transform:uppercase; color:var(--gold); margin-bottom:6px; }
+  .sidebar-header h1 { font-family:'Playfair Display',serif; font-size:34px; font-weight:700; line-height:1.1; color:#f0e8d8; }
+  .sidebar-header h1 em { font-weight:400; font-style:italic; color:var(--tan); }
+  .sidebar-header p { font-family:'Josefin Sans',sans-serif; font-weight:300; font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-top:8px; }
+  .decorative-bar { height:4px; flex-shrink:0; background:repeating-linear-gradient(90deg, var(--gold) 0 8px, var(--gold-2) 8px 12px, var(--rust) 12px 20px, var(--green) 20px 28px, var(--gold) 28px); }
+
+  .tabs { display:flex; border-bottom:1px solid var(--line); background:var(--cream-2); }
+  .tab { flex:1; padding:12px 0 10px; text-align:center; font-family:'Josefin Sans',sans-serif; font-weight:600; font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-1px; transition:color .15s, border-color .15s; }
+  .tab:hover { color:var(--ink-3); }
+  .tab.active { color:var(--ink); border-bottom-color:var(--rust); }
+  .panel { display:none; padding:18px 22px 60px; overflow-y:auto; flex:1; color:var(--ink); }
+  .panel.active { display:block; }
+  .panel::-webkit-scrollbar { width:8px; } .panel::-webkit-scrollbar-thumb { background:var(--line); border-radius:4px; }
+
+  .section-label { font-family:'Josefin Sans',sans-serif; font-weight:600; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--gold-2); margin:18px 0 8px; }
+  .section-label:first-child { margin-top:0; }
+
+  .pills { display:flex; flex-wrap:wrap; gap:6px; }
+  .pill { padding:7px 12px; border:1px solid var(--line); border-radius:3px; background:var(--cream-2); font-size:12px; font-weight:500; color:var(--ink-3); cursor:pointer; user-select:none; transition:all .15s; }
+  .pill:hover { border-color:var(--gold-2); }
+  .pill.on { background:var(--ink-2); color:#f0e8d8; border-color:var(--ink-2); }
+  .pill .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:7px; vertical-align:-1px; }
+  .seg { display:flex; border:1px solid var(--line); border-radius:3px; overflow:hidden; }
+  .seg .pill { flex:1; border:0; border-radius:0; text-align:center; border-right:1px solid var(--line); }
+  .seg .pill:last-child { border-right:0; }
+  .check { display:flex; align-items:center; gap:10px; padding:7px 0; font-size:13px; color:var(--ink-3); cursor:pointer; }
+  .check input { accent-color:var(--rust); width:15px; height:15px; }
+  .range { width:100%; accent-color:var(--rust); margin:6px 0 2px; }
+  .range-val { font-size:12px; color:var(--muted); display:flex; justify-content:space-between; }
+  select { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:3px; background:var(--cream-2); font-family:inherit; font-size:13px; color:var(--ink); }
+
+  .tiles { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .tile { background:var(--cream-2); border:1px solid var(--line); border-radius:3px; padding:10px 12px; }
+  .tile .k { font-family:'Josefin Sans',sans-serif; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
+  .tile .v { font-family:'Playfair Display',serif; font-size:24px; color:var(--ink); line-height:1.2; margin-top:2px; }
+  .tile .v small { font-size:13px; font-family:'DM Sans',sans-serif; color:var(--ink-3); margin-left:3px; }
+
+  .bars { display:flex; flex-direction:column; gap:7px; }
+  .bar { cursor:pointer; }
+  .bar .lbl { display:flex; justify-content:space-between; font-size:12px; color:var(--ink-3); margin-bottom:3px; gap:8px; }
+  .bar .lbl b { color:var(--ink); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bar .lbl span { white-space:nowrap; }
+  .bar .trk { height:6px; background:#e4dbc4; border-radius:3px; overflow:hidden; }
+  .bar .fil { height:100%; background:var(--oil-blue); border-radius:3px; transition:width .5s; }
+  .bar:hover .fil { background:var(--rust); }
+
+  .chapter { position:relative; padding:14px 16px 14px 18px; border:1px solid var(--line); border-radius:2px; background:var(--cream-2) var(--paper); margin-bottom:12px; cursor:pointer; transition:all .2s; }
+  .chapter:hover { border-color:var(--gold); }
+  .chapter.active { border-color:var(--gold-2); box-shadow:0 0 0 3px var(--cream-2), 0 0 0 4px var(--gold-2), 0 6px 16px rgba(42,36,30,.12); }
+  .chapter .n { font-family:'Josefin Sans',sans-serif; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--gold-2); display:flex; align-items:center; gap:8px; }
+  .chapter .n::after { content:''; flex:1; border-top:1px solid var(--line); }
+  .chapter h3 { font-family:'Playfair Display',serif; font-size:19px; font-weight:700; color:var(--ink); margin:4px 0 7px; line-height:1.2; }
+  .chapter h3::after { content:''; display:block; width:34px; border-top:2px solid var(--rust); margin-top:7px; }
+  .chapter.active h3::after { width:64px; }
+  .chapter p { font-size:13px; line-height:1.55; color:var(--ink-3); }
+  .chapter p b { color:var(--ink); font-weight:600; }
+  .chapter .insight { display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--line); }
+  .chapter.active .insight { display:block; }
+  .insight .num { font-family:'Playfair Display',serif; font-style:italic; font-size:32px; color:var(--rust); line-height:1; }
+  .insight .cap { font-family:'Josefin Sans',sans-serif; font-size:11px; letter-spacing:.5px; color:var(--ink-3); margin-top:5px; line-height:1.45; }
+  .story-nav { display:flex; gap:8px; margin-top:4px; }
+  .story-nav .pill { flex:1; text-align:center; }
+
+  .note { font-size:11.5px; line-height:1.5; color:var(--muted); margin-top:16px; padding-top:12px; border-top:1px solid var(--line); }
+  .note a { color:var(--gold-2); }
+
+  /* ---------- map chrome ---------- */
+  .tooltip { position:absolute; z-index:20; pointer-events:none; color:var(--ink); padding:10px 13px; font-size:12px; min-width:230px; display:none; }
+  .tooltip .t { font-family:'Playfair Display',serif; font-size:15px; margin-bottom:5px; color:var(--ink); }
+  .tooltip .r { display:flex; justify-content:space-between; gap:14px; padding:2px 0; color:var(--ink-3); border-bottom:1px dotted #e0d6bf; }
+  .tooltip .r:last-child { border-bottom:0; }
+  .tooltip .r b { color:var(--ink); font-weight:500; text-align:right; }
+  .tooltip .tag { display:flex; align-items:center; gap:8px; font-family:'Josefin Sans',sans-serif; font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--gold-2); margin-bottom:4px; }
+  .tooltip .tag::after { content:''; flex:1; border-top:1px solid var(--gold-2); opacity:.6; }
+
+  .legend { position:absolute; right:18px; bottom:34px; z-index:9; padding:10px 13px 11px; font-size:11px; color:var(--ink-3); width:214px; }
+  .legend .h { font-family:'Josefin Sans',sans-serif; font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:var(--gold-2); margin-bottom:5px; }
+  .legend .row { display:flex; align-items:center; gap:8px; margin:5px 0 0; }
+  .legend .ramp { width:100%; height:7px; border-radius:1px; margin:3px 0 2px; border:1px solid rgba(139,105,20,.35); }
+  .legend .mm { display:flex; justify-content:space-between; font-size:10px; color:var(--muted); font-style:italic; }
+  .legend .cart-h { margin-bottom:8px; }
+
+  /* on-map chapter cartouche */
+  .plate { position:absolute; right:18px; top:18px; z-index:9; width:300px; padding:12px 16px 13px; color:var(--ink); opacity:0; transform:translateY(-6px); transition:opacity .5s, transform .5s; pointer-events:none; }
+  .plate.show { opacity:1; transform:none; }
+  .plate h4 { font-family:'Playfair Display',serif; font-size:19px; font-weight:700; line-height:1.2; margin:5px 0 7px; }
+  .plate .num { font-family:'Playfair Display',serif; font-style:italic; font-size:30px; color:var(--rust); line-height:1; }
+  .plate .cap { font-family:'Josefin Sans',sans-serif; font-size:10.5px; letter-spacing:.4px; color:var(--ink-3); margin-top:4px; line-height:1.45; }
+  @media (max-width: 1100px) { .plate { display:none; } }
+
+  /* first-visit intro */
+  .intro-bg { position:absolute; inset:0; left:var(--sidebar); z-index:24; background:rgba(0,0,0,.42); opacity:0; pointer-events:none; transition:opacity .5s; }
+  .intro-bg.show { opacity:1; pointer-events:auto; }
+  .intro { position:absolute; left:calc(var(--sidebar) + (100% - var(--sidebar)) / 2); top:50%; transform:translate(-50%, -46%); width:min(480px, calc(100% - var(--sidebar) - 48px)); z-index:25; padding:22px 28px 20px; color:var(--ink); opacity:0; pointer-events:none; transition:opacity .5s, transform .5s; }
+  .intro.show { opacity:1; pointer-events:auto; transform:translate(-50%, -50%); }
+  .intro h2 { font-family:'Playfair Display',serif; font-size:27px; font-weight:700; line-height:1.15; margin:12px 0 10px; color:var(--ink); }
+  .intro p { font-size:14px; line-height:1.6; color:var(--ink-3); margin-bottom:10px; }
+  .intro p b { color:var(--ink); font-weight:600; }
+  .intro-actions { display:flex; gap:8px; margin:14px 0 12px; }
+  .intro-actions .pill { flex:1; text-align:center; padding:10px 12px; font-size:13px; }
+  .intro .credit { font-size:11px; line-height:1.5; color:var(--muted); border-top:1px solid var(--line); padding-top:10px; }
+  body[data-theme="panel"] .intro h2 { font-family:'Roboto Condensed',sans-serif; text-transform:uppercase; letter-spacing:.6px; font-size:26px; }
+  body[data-theme="panel"] .intro .credit { font-family:'IBM Plex Mono',monospace; font-size:10.5px; }
+
+  .zoombadge { position:absolute; left:calc(var(--sidebar) + 14px); top:14px; z-index:9; display:flex; gap:6px; }
+  .zoombadge span { background:var(--ink-2); color:#f0e8d8; font-family:'Josefin Sans',sans-serif; font-size:10px; letter-spacing:2px; text-transform:uppercase; padding:6px 11px; border-radius:2px; box-shadow:0 0 0 2px var(--cream-2), 0 0 0 3px var(--gold-2); }
+  .zoombadge span.lv { color:var(--gold); }
+
+  .selbox { position:absolute; left:calc(var(--sidebar) + 18px); bottom:34px; z-index:9; padding:12px 15px 13px; width:316px; color:var(--ink); display:none; }
+  .selbox .t { font-family:'Playfair Display',serif; font-size:18px; }
+  .selbox .t::after { content:''; display:block; width:34px; border-top:2px solid var(--rust); margin:6px 0 8px; }
+  .selbox .s { margin-bottom:6px; }
+  .selbox .x { position:absolute; right:8px; top:6px; cursor:pointer; color:var(--muted); font-size:16px; }
+  .selbox .r { display:flex; justify-content:space-between; font-size:12px; color:var(--ink-3); padding:2px 0; }
+  .selbox .r b { color:var(--ink); font-weight:500; }
+  .selbox .bars { margin-top:8px; }
+
+  .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { z-index:8; }
+  .maplibregl-ctrl-attrib { font-size:10px; }
+  .loading { position:absolute; inset:0; left:var(--sidebar); z-index:30; display:flex; align-items:center; justify-content:center; background:var(--cream); color:var(--ink-3); font-family:'Josefin Sans',sans-serif; letter-spacing:4px; text-transform:uppercase; font-size:12px; }
+  @media (max-width: 900px) { :root { --sidebar:0px; } .sidebar { display:none; } }
+</style>
+</head>
+<body data-theme="panel">
+
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <h2>Goods on the move</h2>
+    <h1>In <em>Transit</em></h1>
+    <p>Road freight · Europe · 1.5M flows</p>
+  </div>
+  <div class="decorative-bar"></div>
+  <div class="tabs">
+    <div class="tab active" data-tab="story">Story</div>
+    <div class="tab" data-tab="explore">Explore</div>
+    <div class="tab" data-tab="design">Design</div>
+  </div>
+
+  <div class="panel active" id="panel-story">
+    <div id="chapters"></div>
+    <div class="story-nav"><div class="pill" id="prev">← Previous</div><div class="pill" id="next">Next →</div></div>
+    <div class="note">Flows are modeled by Fraunhofer ISI from the ETISplus 2010 survey, scaled to 2019 and forecast to 2030. Cost and transit time are illustrative estimates layered on top.</div>
+  </div>
+
+  <div class="panel" id="panel-explore">
+    <div class="section-label">Year</div>
+    <div class="seg" id="year"><div class="pill" data-v="10">2010</div><div class="pill on" data-v="19">2019</div><div class="pill" data-v="30">2030</div></div>
+    <div class="section-label">Measure</div>
+    <div class="pills" id="metric"><div class="pill on" data-v="tons">Tonnes</div><div class="pill" data-v="trucks">Trucks</div><div class="pill" data-v="cost">Est. cost €</div><div class="pill" data-v="days">Transit days</div></div>
+    <div class="section-label">Filter</div>
+    <select id="country"><option value="">All origin countries</option></select>
+    <label class="check" style="margin-top:6px"><input type="checkbox" id="xborder"> Cross-border flows only</label>
+    <input type="range" class="range" id="mintons" min="0" max="100" value="0">
+    <div class="range-val"><span>Minimum flow size</span><span id="mintons-val">any</span></div>
+    <div class="section-label">In view</div>
+    <div class="tiles">
+      <div class="tile"><div class="k">Tonnes</div><div class="v" id="st-tons">–</div></div>
+      <div class="tile"><div class="k">Flows shown</div><div class="v" id="st-flows">–</div></div>
+      <div class="tile"><div class="k">Avg haul</div><div class="v" id="st-dist">–</div></div>
+      <div class="tile"><div class="k">Est. freight bill</div><div class="v" id="st-cost">–</div></div>
+    </div>
+    <div class="section-label">Top corridors</div>
+    <div class="bars" id="topbars"></div>
+  </div>
+
+  <div class="panel" id="panel-design">
+    <div class="section-label">Base map</div>
+    <select id="basemap"></select>
+    <div class="section-label">Flow rendering</div>
+    <div class="pills" id="flowstyle"><div class="pill on" data-v="route">Routed paths</div><div class="pill" data-v="arc">Arcs</div><div class="pill" data-v="trips">Moving trucks</div></div>
+    <div class="section-label">Layers</div>
+    <label class="check"><input type="checkbox" id="l-network" checked> Highway load (trucks per year)</label>
+    <label class="check"><input type="checkbox" id="l-regions" checked> Region hubs (sized by tonnage)</label>
+    <label class="check"><input type="checkbox" id="l-country" checked> Country arcs (zoomed out)</label>
+    <label class="check"><input type="checkbox" id="l-labels" checked> Hub labels (zoomed in)</label>
+    <label class="check"><input type="checkbox" id="l-flows" checked> Region-to-region flows</label>
+    <div class="section-label">Flow color</div>
+    <div class="pills" id="palette"><div class="pill" data-v="auto"><span class="sw" style="background:#31339e"></span>Match base</div><div class="pill on" data-v="ember"><span class="sw" style="background:#ff8a3d"></span>Ember</div><div class="pill" data-v="verdigris"><span class="sw" style="background:#2a9d8f"></span>Verdigris</div><div class="pill" data-v="change"><span class="sw" style="background:linear-gradient(90deg,#2b6cb0,#bbb,#c0392b)"></span>2019→2030 change</div></div>
+    <div class="section-label">Motion</div>
+    <label class="check"><input type="checkbox" id="l-animate" checked> Animate transitions</label>
+    <input type="range" class="range" id="speed" min="1" max="10" value="2">
+    <div class="range-val"><span>Truck speed (Moving trucks mode)</span><span id="speed-val">2</span></div>
+    <div class="note">Mapbox gallery styles load directly from their public style IDs; the keyless group runs on OpenFreeMap tiles with hand-built styles. Data: Speth, Sauter, Plötz &amp; Signer (2021), Fraunhofer ISI, <a href="https://data.mendeley.com/datasets/py2zkrb65h/1" target="_blank">Mendeley Data</a>, CC BY 4.0.</div>
+  </div>
+</aside>
+
+<div id="map"></div>
+<div class="loading" id="loading">Loading 1.5 million flows…</div>
+<div class="zoombadge"><span class="lv" id="zl">Continental</span><span id="zv">z 4.0</span></div>
+<div class="tooltip cartouche" id="tip"></div>
+<div class="legend cartouche" id="legend"></div>
+<div class="selbox cartouche" id="selbox"></div>
+<div class="plate cartouche" id="plate"></div>
+<div class="intro-bg" id="intro-bg"></div>
+<div class="intro cartouche" id="intro">
+  <div class="cart-h"><span class="orn">❖</span> In Transit <span class="orn">❖</span></div>
+  <h2>Goods on the move, mapped.</h2>
+  <p>You are looking at <b>1.5 million truck journeys</b> between 1,675 European regions, routed along the real highway network. Line width is tonnage, brightness is how busy the road is, and every lane carries an estimated freight bill and transit time.</p>
+  <p>Follow the story on the left, or explore freely: hover anything, click a hub for its partners, switch base maps and rendering in Design.</p>
+  <div class="intro-actions"><div class="pill on" id="intro-story">Begin the story</div><div class="pill" id="intro-explore">Explore freely</div></div>
+  <div class="credit">Data: Speth, Sauter, Plötz &amp; Signer (2021), Fraunhofer ISI, ETISplus-based European truck flows, CC BY 4.0. Cost and transit time are illustrative estimates. A demo by devlab502.</div>
+</div>
+
+<script>
+/* ============================================================
+   In Transit — prototype (chapter one: European road freight)
+   deck.gl 9 over MapLibre GL 4, data prepped from Fraunhofer ISI
+   ============================================================ */
+const {MapboxOverlay, ArcLayer, PathLayer, LineLayer, ScatterplotLayer, TextLayer, TripsLayer} = deck;
+
+// Optional: genuine Mapbox "Standard Oil Company" style from the FLW map (token is URL-restricted, so pass ?mapbox=<token> on an allowed origin).
+// Public Mapbox token, URL-restricted to devlab502.net. For local work, the git-ignored public/dev-token.js
+// (loaded below only on localhost) sets window.MB_DEV_TOKEN to the account's unrestricted token. ?mapbox=<token> overrides.
+const IS_LOCAL = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+const MB_TOKEN = new URLSearchParams(location.search).get('mapbox') || (IS_LOCAL
+  ? (window.MB_DEV_TOKEN || 'pk.eyJ1IjoiZGFuaWVsc2FuZGVycyIsImEiOiJjbXZpaDJ6cHYwNXpkMzJxN25pdWpxMW8zIn0.klbASHS6Atot6HO-2dEeuw')
+  : 'pk.eyJ1IjoiZGFuaWVsc2FuZGVycyIsImEiOiJjbXZpaDJ6cHYwNXpkMzJxN25pdWpxMW8zIn0.klbASHS6Atot6HO-2dEeuw');
+const mb = id => `https://api.mapbox.com/styles/v1/${id}?access_token=${MB_TOKEN}`;
+// Base-map registry: style URL plus the palette preset the data layers use on it.
+// Gallery styles load straight from Mapbox's public style IDs (no need to clone them into Studio).
+const BASEMAPS = {
+  mapbox:    { label:'Standard Oil (your copy)', group:'Your Mapbox styles',   url:mb('danielsanders/cmaspb28y006u01s33gzfcgig'), pal:'oil' },
+  oilgal:    { label:'Standard Oil Company',     group:'Mapbox gallery',       url:mb('mapbox-map-design/ckr0svm3922ki18qntevm857n'), pal:'oil' },
+  mineral:   { label:'Mineral',                  group:'Mapbox gallery',       url:mb('mapbox/cjtep62gq54l21frr1whf27ak'), pal:'mineral' },
+  decimal:   { label:'Decimal',                  group:'Mapbox gallery',       url:mb('mapbox-map-design/ck4014y110wt61ctt07egsel6'), pal:'decimal' },
+  moonlight: { label:'Moonlight',                group:'Mapbox gallery',       url:mb('mapbox/cj3kbeqzo00022smj7akz3o1e'), pal:'paper' },
+  blueprint: { label:'Blueprint',                group:'Mapbox gallery',       url:mb('mapbox-map-design/cks97e1e37nsd17nzg7p0308g'), pal:'blueprint' },
+  memory:    { label:'American Memory',          group:'Mapbox gallery',       url:mb('mapbox-map-design/cl4orrp5e000p14ldwenm7xsf'), pal:'paper' },
+  northstar: { label:'North Star',               group:'Mapbox gallery',       url:mb('mapbox/cj44mfrt20f082snokim4ungi'), pal:'paper' },
+  pencil:    { label:'Pencil',                   group:'Mapbox gallery',       url:mb('mapbox-map-design/cks9iema71es417mlrft4go2k'), pal:'paper' },
+  frank:     { label:'Frank',                    group:'Mapbox gallery',       url:mb('mapbox-map-design/ckshxkppe0gge18nz20i0nrwq'), pal:'paper' },
+  leshine:   { label:'Lè Shine',                 group:'Mapbox gallery',       url:mb('mapbox/cjcunv5ae262f2sm9tfwg8i0w'), pal:'paper' },
+  neon:      { label:'Neon Glow',                group:'Mapbox gallery',       url:mb('mapbox-map-design/cl4gxqwi5001415l381n7qwak'), pal:'night' },
+  oil:       { label:'Oil Company (hand-built)', group:'Keyless (OpenFreeMap)', url:'styles/oil.json', pal:'oil' },
+  night:     { label:'Midnight (hand-built)',    group:'Keyless (OpenFreeMap)', url:'styles/moonlight.json', pal:'night' },
+  paper:     { label:'Positron',                 group:'Keyless (OpenFreeMap)', url:'https://tiles.openfreemap.org/styles/positron', pal:'paper' }
+};
+// Rewrites mapbox:// URLs so MapLibre can load a Mapbox-hosted style.
+function mapboxTransform(url) {
+  if (!url.startsWith('mapbox://')) return { url };
+  const t = `access_token=${MB_TOKEN}`;
+  if (url.startsWith('mapbox://styles/')) return { url: `https://api.mapbox.com/styles/v1/${url.slice(16)}?${t}` };
+  if (url.startsWith('mapbox://sprites/')) { const m = url.match(/^mapbox:\/\/sprites\/(.+?)(@2x)?\.(png|json)(\?.*)?$/); return m ? { url: `https://api.mapbox.com/styles/v1/${m[1]}/sprite${m[2]||''}.${m[3]}?${t}` } : { url }; }
+  if (url.startsWith('mapbox://fonts/')) return { url: `https://api.mapbox.com/fonts/v1/${url.slice(15)}?${t}` };
+  return { url: `https://api.mapbox.com/v4/${url.slice(9)}.json?secure&${t}` };
+}
+
+// Per-basemap palettes. flow = sequential ramp (light→dark, one hue), net = highway load ramp, hi = selection/highlight.
+const PAL = {
+  oil:       { flow:['#8d8fd6','#31339e','#161866'], net:['#d9a79b','#9c2f2f','#3a0a0a'], hi:'#c4a44a', region:[49,51,158],   label:'#2a241e', halo:'#efe6d0' },
+  mineral:   { flow:['#8a9ab8','#2b4070','#0f1a33'], net:['#f0b0a0','#c8402a','#5a1408'], hi:'#f2c230', region:[200,64,42],    label:'#1a1a1a', halo:'#eadcc2' },
+  decimal:   { flow:['#ffd59e','#ff9e3d','#c75f00'], net:['#1d4634','#8ff0c4','#fff3b8'], hi:'#fff07a', region:[96,210,159],   label:'#9cfcd2', halo:'#000000', glow:true },
+  blueprint: { flow:['#fff3b0','#ffd34d','#b38600'], net:['#c9d8f5','#ffffff','#8fb0e8'], hi:'#ff7f50', region:[255,211,77],   label:'#ffffff', halo:'#2c4a86' },
+  night:     { flow:['#ffd59e','#ff9e3d','#c75f00'], net:['#1f4a5c','#5fd3e0','#eafcff'], hi:'#ff5e5e', region:[255,158,61],   label:'#f0e8d8', halo:'#121a2a', glow:true },
+  paper:     { flow:['#9ab9dc','#1b4d8f','#0b2a52'], net:['#f0b6a6','#c0392b','#6b1b12'], hi:'#e0a526', region:[27,77,143],    label:'#2a241e', halo:'#ffffff' }
+};
+const PAL_OVERRIDE = {
+  ember:     { flow:['#ffd1a6','#ff8a3d','#a63d00'] },
+  verdigris: { flow:['#a8e0d8','#2a9d8f','#124e47'] }
+};
+const CHANGE = ['#2b6cb0', '#b8b8b8', '#c0392b']; // diverging: cool = shrink, neutral mid, warm = grow
+
+// Illustrative road-haulage rate (€ per tonne-km) by origin country. Rough, for demo only.
+const RATE = (cc) => ({CH:.19,NO:.18,DK:.16,SE:.16,FI:.16,IS:.16,DE:.14,AT:.14,NL:.14,BE:.14,LU:.14,FR:.13,IE:.13,UK:.13,IT:.12,ES:.11,PT:.10,GR:.10,SI:.10,CZ:.09,PL:.085,SK:.085,HU:.085,HR:.085,EE:.085,LV:.08,LT:.08,RO:.075,BG:.07,RS:.07,BA:.07,MK:.07,ME:.07,TR:.065,UA:.06,BY:.06,RU:.06,KZ:.06,MA:.065})[cc] || .10;
+const EU = new Set('AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE CH NO LI IS'.split(' '));
+const CNAME = {AT:'Austria',BE:'Belgium',BG:'Bulgaria',CH:'Switzerland',CZ:'Czechia',DE:'Germany',DK:'Denmark',EE:'Estonia',ES:'Spain',FI:'Finland',FR:'France',GR:'Greece',HR:'Croatia',HU:'Hungary',IE:'Ireland',IT:'Italy',LT:'Lithuania',LU:'Luxembourg',LV:'Latvia',NL:'Netherlands',NO:'Norway',PL:'Poland',PT:'Portugal',RO:'Romania',SE:'Sweden',SI:'Slovenia',SK:'Slovakia',UK:'United Kingdom',RS:'Serbia',BA:'Bosnia',MK:'N. Macedonia',ME:'Montenegro',TR:'Türkiye',UA:'Ukraine',BY:'Belarus',RU:'Russia',KZ:'Kazakhstan',MA:'Morocco',LI:'Liechtenstein',AD:'Andorra',SM:'San Marino',GI:'Gibraltar',CY:'Cyprus',MD:'Moldova',AL:'Albania',XK:'Kosovo'};
+
+// ---------- state ----------
+const S = { year:'19', metric:'tons', country:'', xborder:false, minPct:0, basemap:MB_TOKEN ? 'decimal' : 'night', flowstyle:'route', palette:'ember', basePalette:'ember',
+  layers:{network:true, regions:true, country:true, labels:true, flows:true}, animate:true, speed:2, selected:null, chapter:0, zoom:4, time:0 };
+// Chrome theme follows the base map: dark bases get the control-panel chrome, light bases the vintage paper chrome.
+const THEME_OF = { decimal:'panel', night:'panel' };
+function applyTheme() { document.body.dataset.theme = THEME_OF[BASEMAPS[S.basemap].pal] || 'paper'; }
+
+const D = {}; // data
+const fmtT = t => t >= 1e6 ? (t/1e6).toFixed(t>=1e7?0:1)+' Mt' : t >= 1e3 ? Math.round(t/1e3)+' kt' : Math.round(t)+' t';
+const fmtN = n => n >= 1e6 ? (n/1e6).toFixed(1)+' M' : n >= 1e3 ? (n/1e3).toFixed(n>=1e5?0:1)+' k' : Math.round(n)+'';
+const fmtE = e => e >= 1e9 ? '€'+(e/1e9).toFixed(1)+' bn' : e >= 1e6 ? '€'+(e/1e6).toFixed(0)+' M' : '€'+fmtN(e);
+const hex2rgb = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+const lerp = (a,b,t) => a+(b-a)*t;
+function ramp(stops, t) { // stops: 3 hex, t in 0..1
+  const c = stops.map(hex2rgb); t = Math.max(0, Math.min(1, t));
+  const [a, b, u] = t < .5 ? [c[0], c[1], t*2] : [c[1], c[2], (t-.5)*2];
+  return [Math.round(lerp(a[0],b[0],u)), Math.round(lerp(a[1],b[1],u)), Math.round(lerp(a[2],b[2],u))];
+}
+function pal() { const base = PAL[BASEMAPS[S.basemap].pal]; return S.palette === 'auto' || S.palette === 'change' ? base : {...base, ...PAL_OVERRIDE[S.palette]}; }
+
+// flow value helpers
+const tons = f => f['t'+S.year];
+const trucks = f => S.year === '10' ? f.tr19 * (f.t10/f.t19 || 1) : f['tr'+S.year];
+const cost = f => tons(f) * f.dist * RATE(D.R[f.o].cc);                          // € per year, illustrative
+const days = f => { const h = f.dist / 65; let d = h / 9; if (D.R[f.o].cc !== D.R[f.d].cc) d += .25; if (!EU.has(D.R[f.o].cc) || !EU.has(D.R[f.d].cc)) d += 1; return d; };
+const metricVal = f => S.metric === 'tons' ? tons(f) : S.metric === 'trucks' ? trucks(f) : S.metric === 'cost' ? cost(f) : days(f);
+const fmtMetric = v => S.metric === 'tons' ? fmtT(v) : S.metric === 'trucks' ? fmtN(v)+' trucks' : S.metric === 'cost' ? fmtE(v) : v.toFixed(1)+' days';
+
+// ---------- load ----------
+Promise.all(['nodes','network','regions','flows_top','country_flows','region_top','meta'].map(n => fetch('data/'+n+'.json').then(r => r.json())))
+.then(([nodes, network, regions, flows, cflows, rtop, meta]) => {
+  D.N = nodes; D.E = network; D.meta = meta; D.rtop = rtop;
+  D.R = {}; regions.forEach(r => D.R[r.id] = r); D.regions = regions; D.byOut = [...regions].sort((a, b) => b.out19 - a.out19);
+  D.F = flows.filter(f => D.R[f.o] && D.R[f.d]).map((f, i) => { const o = D.R[f.o], d = D.R[f.d]; const mid = f.path.map(id => nodes[id]).filter(Boolean);
+    return {...f, i, xb: f.xb ?? (o.cc !== d.cc ? 1 : 0), coords: [[o.lng, o.lat], ...mid, [d.lng, d.lat]]}; });
+  D.maxT = Math.max(...D.F.map(f => f.t19)); D.minT = Math.min(...D.F.map(f => f.t19));
+  D.F.forEach(f => { let acc = 0; f.ts = f.coords.map((c, i) => { if (i) acc += dist(f.coords[i-1], c); return acc; }); f.len = acc; });
+  D.maxLen = Math.max(...D.F.map(f => f.len));
+  // Moving trucks: each lane runs convoys of 2 to 5 trucks (more for bigger lanes), each truck a short comet spaced 28 km behind the last.
+  // Convoys are phase-shifted copies spaced along the loop so one is nearly always somewhere on the lane, whatever its length.
+  D.period = D.maxLen + 400; D.trips = [];
+  D.F.forEach(f => { const n = 2 + Math.round(3 * Math.sqrt(f.t19 / D.maxT)); const gap = Math.max(f.len + 320, 480); const phase = Math.random() * gap;
+    for (let t0 = phase - gap; t0 < D.period; t0 += gap) for (let k = 0; k < n; k++) D.trips.push({ f, k, ts: f.ts.map(v => v + t0 + k * 28) }); });
+  D.maxE = Math.max(...D.E.map(e => e[3]));
+  // country centroids weighted by outbound tonnage
+  const cc = {}; regions.forEach(r => { const c = cc[r.cc] = cc[r.cc] || {w:0, x:0, y:0}; const w = r.out19 + 1; c.w += w; c.x += r.lng*w; c.y += r.lat*w; });
+  D.C = {}; Object.keys(cc).forEach(k => D.C[k] = [cc[k].x/cc[k].w, cc[k].y/cc[k].w]);
+  D.CF = cflows.filter(c => c.o !== c.d && D.C[c.o] && D.C[c.d] && CNAME[c.o] && CNAME[c.d]).sort((a, b) => b.t19 - a.t19).slice(0, 70);
+  D.maxCF = Math.max(...D.CF.map(c => c.t19));
+  const sel = document.getElementById('country');
+  Object.keys(D.C).filter(k => CNAME[k]).sort((a,b) => CNAME[a].localeCompare(CNAME[b])).forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = CNAME[k]; sel.appendChild(o); });
+  buildStory();
+  initMap();
+});
+function dist(a, b) { const R = 6371, dLat = (b[1]-a[1])*Math.PI/180, dLng = (b[0]-a[0])*Math.PI/180, s = Math.sin(dLat/2)**2 + Math.cos(a[1]*Math.PI/180)*Math.cos(b[1]*Math.PI/180)*Math.sin(dLng/2)**2; return 2*R*Math.asin(Math.sqrt(s)); }
+
+// ---------- map ----------
+let map, overlay;
+function initMap() {
+  const sel = document.getElementById('basemap'); let grp = null;
+  Object.entries(BASEMAPS).forEach(([k, b]) => { if (!MB_TOKEN && b.url.includes('api.mapbox.com')) return;
+    if (!grp || grp.label !== b.group) { grp = document.createElement('optgroup'); grp.label = b.group; sel.appendChild(grp); }
+    const o = document.createElement('option'); o.value = k; o.textContent = b.label; grp.appendChild(o); });
+  sel.value = S.basemap; applyTheme();
+  map = new maplibregl.Map({ container:'map', style:BASEMAPS[S.basemap].url, center:[9.5, 49.5], zoom:4, minZoom:2.5, maxZoom:12, maxPitch:70, attributionControl:{compact:true}, transformRequest:MB_TOKEN ? mapboxTransform : undefined });
+  map.addControl(new maplibregl.NavigationControl({showCompass:false}), 'bottom-right');
+  overlay = new MapboxOverlay({ interleaved:false, layers:[] });
+  map.addControl(overlay);
+  map.once('load', () => { document.getElementById('loading').style.display = 'none'; render(); setChapter(0, false); showIntro(); });
+  map.once('idle', () => { document.getElementById('loading').style.display = 'none'; });
+  // Decimal's own roads are the same mint as our load layer: pull them back so the data reads on top.
+  map.on('style.load', () => { if (S.basemap !== 'decimal') return;
+    ['road-simple', 'bridge-simple', 'tunnel-simple', 'road-path', 'bridge-path'].forEach(id => { if (map.getLayer(id)) map.setPaintProperty(id, 'line-opacity', .45); }); });
+  map.on('zoom', () => { S.zoom = map.getZoom(); zoomBadge(); render(); });
+  map.on('click', e => { const p = overlay.pickObject({x:e.point.x, y:e.point.y, radius:4}); if (!p) select(null); });
+  requestAnimationFrame(animate);
+}
+// ---------- first-visit intro ----------
+const INTRO_KEY = 'intransit-intro-seen';
+function showIntro() {
+  let seen = false; try { seen = localStorage.getItem(INTRO_KEY) === '1'; } catch (e) {}
+  if (seen && !new URLSearchParams(location.search).has('intro')) return;
+  document.getElementById('intro-bg').classList.add('show'); document.getElementById('intro').classList.add('show');
+}
+function hideIntro(tab) {
+  try { localStorage.setItem(INTRO_KEY, '1'); } catch (e) {}
+  document.getElementById('intro-bg').classList.remove('show'); document.getElementById('intro').classList.remove('show');
+  if (tab) document.querySelector(`.tab[data-tab=${tab}]`).click();
+}
+document.getElementById('intro-story').onclick = () => { hideIntro('story'); setChapter(0); };
+document.getElementById('intro-explore').onclick = () => hideIntro('explore');
+document.getElementById('intro-bg').onclick = () => hideIntro();
+
+function zoomBadge() { const z = S.zoom; document.getElementById('zv').textContent = 'z '+z.toFixed(1); document.getElementById('zl').textContent = z < 4.3 ? 'Continental' : z < 6 ? 'Regional' : 'Corridor'; }
+
+// ---------- filtering ----------
+function visibleFlows() {
+  const minT = D.minT + (D.maxT - D.minT) * Math.pow(S.minPct/100, 2);
+  return D.F.filter(f => {
+    if (f.t19 < minT) return false;
+    const o = D.R[f.o], d = D.R[f.d];
+    if (S.country && o.cc !== S.country) return false;
+    if (S.xborder && !f.xb) return false;
+    return true;
+  });
+}
+
+// ---------- layers ----------
+function flowColor(f, maxV) {
+  if (S.palette === 'change') { const g = f.t19 ? (f.t30 - f.t19)/f.t19 : 0; return ramp(CHANGE, .5 + Math.max(-1, Math.min(1, (g - .08)/.12))/2); }
+  const t = Math.sqrt(metricVal(f)/maxV);
+  return ramp(pal().flow, .25 + .75*t);
+}
+function render() {
+  if (!overlay) return;
+  const P = pal(), z = S.zoom, layers = [];
+  const limit = z < 4.6 ? 500 : z < 5.5 ? 1200 : z < 6.5 ? 2000 : 3000;   // depth grows with zoom
+  const flows = visibleFlows().slice(0, limit); D.vis = flows;
+  const maxV = Math.max(1, ...flows.map(metricVal));
+  const widthOf = f => { const v = S.metric === 'days' ? tons(f)/D.maxT : metricVal(f)/maxV; return 1 + 7*Math.sqrt(v); };
+  const trans = S.animate ? { getWidth:400, getColor:400, getSourceColor:400, getTargetColor:400, getRadius:500, getFillColor:400 } : {};
+  const hiRGB = hex2rgb(P.hi);
+  const isHi = f => S.selected && (f.o === S.selected || f.d === S.selected);
+  const yk = S.year === '10' ? '19' : S.year; // region totals only exist for 2019/2030
+
+  // 1. highway network load (recedes while trucks are animating). Dark bases get a soft glow under the busiest segments.
+  const netDim = S.flowstyle === 'trips' && S.layers.flows ? .35 : 1;
+  const loadOf = e => (S.year === '30' ? e[4] : e[3]) / D.maxE;
+  if (S.layers.network && P.glow) layers.push(new LineLayer({ id:'network-glow', data:D.E.filter(e => e[3] > D.maxE * .08), getSourcePosition:e => D.N[e[0]], getTargetPosition:e => D.N[e[1]],
+    getColor:e => { const v = loadOf(e); const c = ramp(P.net, Math.sqrt(v)); return [c[0], c[1], c[2], 70 * v * netDim]; },
+    getWidth:e => 4 + 18*Math.sqrt(loadOf(e)), widthUnits:'pixels', pickable:false, updateTriggers:{getColor:[S.year, S.basemap, netDim], getWidth:[S.year]} }));
+  if (S.layers.network) layers.push(new LineLayer({ id:'network', data:D.E, getSourcePosition:e => D.N[e[0]], getTargetPosition:e => D.N[e[1]],
+    getColor:e => { const v = loadOf(e); const c = ramp(P.net, Math.sqrt(v)); return [c[0], c[1], c[2], (v > 0 ? (P.glow ? 70 + 185*Math.sqrt(v) : 110 + 145*Math.sqrt(v)) : 25) * netDim]; },
+    getWidth:e => .4 + (P.glow ? 6.5 : 5.5)*Math.sqrt(loadOf(e)), widthUnits:'pixels', widthMinPixels:.3,
+    pickable:true, onHover:hoverEdge, updateTriggers:{getColor:[S.year, S.basemap, netDim], getWidth:[S.year, S.basemap]}, transitions:trans }));
+
+  // 2. country arcs when zoomed out
+  if (S.layers.country && z < 5.2) { const a = Math.max(0, Math.min(1, (5.2 - z)/.6));
+    layers.push(new ArcLayer({ id:'country-arcs', data:D.CF, getSourcePosition:c => D.C[c.o], getTargetPosition:c => D.C[c.d],
+      getSourceColor:c => [...ramp(P.flow, .3 + .7*Math.sqrt(c.t19/D.maxCF)), 200*a], getTargetColor:c => [...ramp(P.flow, .3 + .7*Math.sqrt(c.t19/D.maxCF)), 60*a],
+      getWidth:c => 1 + 7*Math.sqrt(c.t19/D.maxCF), getHeight:.45, getTilt:c => (c.o < c.d ? 1 : -1) * 22, greatCircle:false, pickable:true, onHover:hoverCountry, updateTriggers:{getSourceColor:[S.basemap, S.palette, a], getTargetColor:[S.basemap, S.palette, a]} })); }
+
+  // 3. region-to-region flows
+  if (S.layers.flows && (z >= 4.4 || !S.layers.country)) {
+    const fade = S.layers.country ? Math.max(0, Math.min(1, (z - 4.4)/.8)) : 1;
+    const alpha = f => Math.round((isHi(f) ? 255 : S.selected ? 40 : 170) * fade);
+    const col = f => isHi(f) ? [...hiRGB, alpha(f)] : [...flowColor(f, maxV), alpha(f)];
+    const trig = [S.year, S.metric, S.palette, S.basemap, S.selected, fade];
+    if (S.flowstyle === 'arc') layers.push(new ArcLayer({ id:'flows-arc', data:flows, getSourcePosition:f => [D.R[f.o].lng, D.R[f.o].lat], getTargetPosition:f => [D.R[f.d].lng, D.R[f.d].lat],
+      getSourceColor:col, getTargetColor:f => { const c = col(f); return [c[0], c[1], c[2], c[3]*.35]; }, getWidth:widthOf, getHeight:.4, getTilt:f => (f.o < f.d ? 1 : -1) * 25, pickable:true, onHover:hoverFlow, onClick:clickFlow,
+      updateTriggers:{getSourceColor:trig, getTargetColor:trig, getWidth:[S.year, S.metric]}, transitions:trans }));
+    else if (S.flowstyle === 'route') layers.push(new PathLayer({ id:'flows-route', data:flows, getPath:f => f.coords, getColor:col, getWidth:widthOf, widthUnits:'pixels', widthMinPixels:.8, capRounded:true, jointRounded:true, billboard:false,
+      pickable:true, onHover:hoverFlow, onClick:clickFlow, updateTriggers:{getColor:trig, getWidth:[S.year, S.metric]}, transitions:trans }));
+    else { const tcol = f => { const c = col(f); return [c[0], c[1], c[2], Math.min(255, c[3]*1.5)]; };
+      layers.push(new PathLayer({ id:'flows-trips-base', data:flows, getPath:f => f.coords, getColor:f => { const c = col(f); return [c[0], c[1], c[2], c[3]*.18]; }, getWidth:widthOf, widthUnits:'pixels', widthMinPixels:.6, capRounded:true, jointRounded:true, pickable:false, updateTriggers:{getColor:trig, getWidth:[S.year, S.metric]} }));
+      const shown = new Set(flows), trips = D.trips.filter(t => shown.has(t.f));
+      layers.push(new TripsLayer({ id:'flows-trips', data:trips, getPath:t => t.f.coords, getTimestamps:t => t.ts, getColor:t => tcol(t.f), getWidth:t => 3 + widthOf(t.f)*.7, widthUnits:'pixels', widthMinPixels:3, capRounded:true, jointRounded:true,
+        trailLength:18 + 4*S.speed, currentTime:S.time, fadeTrail:true, pickable:true, onHover:info => hoverFlow({...info, object:info.object?.f}), onClick:info => clickFlow({object:info.object?.f}), updateTriggers:{getColor:trig, getWidth:[S.year, S.metric]} })); }
+  }
+
+  // 4. region hubs
+  if (S.layers.regions) { const maxR = Math.max(...D.regions.map(r => r['out'+yk]));
+    // Hubs are sized in screen pixels so they never balloon when zooming in; count grows with zoom so dense areas stay readable.
+    const nReg = z < 4.6 ? 160 : z < 5.5 ? 320 : z < 6.5 ? 600 : z < 7.5 ? 1000 : 1675;
+    const regs = D.byOut.slice(0, nReg);
+    const grow = 1 + Math.max(0, Math.min(1, (z - 5) / 3)) * .6;
+    layers.push(new ScatterplotLayer({ id:'regions', data:regs, getPosition:r => [r.lng, r.lat], getRadius:r => (2 + 13*Math.sqrt(r['out'+yk]/maxR)) * grow, radiusUnits:'pixels', radiusMinPixels:1.5, radiusMaxPixels:26,
+      getFillColor:r => r.id === S.selected ? [...hiRGB, 200] : [...P.region, 16], getLineColor:r => r.id === S.selected ? [...hiRGB, 255] : [...P.region, 150], lineWidthUnits:'pixels', getLineWidth:r => r.id === S.selected ? 2 : .9, stroked:true, filled:true, pickable:true, onHover:hoverRegion, onClick:info => select(info.object?.id),
+      updateTriggers:{getFillColor:[S.selected, S.basemap], getLineColor:[S.selected, S.basemap], getLineWidth:[S.selected], getRadius:[yk, grow]}, transitions:trans })); }
+
+  // 5. labels for biggest hubs
+  // hub labels fill the gap between country labels and the base map's own city labels
+  if (S.layers.labels && z >= 4.6 && z < 7) { const n = z < 6 ? 28 : 60; const top = D.byOut.slice(0, n);
+    layers.push(new TextLayer({ id:'labels', data:top, getPosition:r => [r.lng, r.lat], getText:r => shortName(r.name), getSize:z < 6 ? 12 : 13, getColor:hex2rgb(P.label), getPixelOffset:[0, -12],
+      fontFamily:'Josefin Sans, sans-serif', fontWeight:600, characterSet:'auto', outlineWidth:3, outlineColor:[...hex2rgb(P.halo), 230], fontSettings:{sdf:true}, getTextAnchor:'middle', getAlignmentBaseline:'bottom', updateTriggers:{getColor:[S.basemap]} })); }
+
+  D.layers = layers; overlay.setProps({ layers });
+  updateStats(flows);
+  legend(maxV);
+}
+function shortName(n) { return n.replace(/, (Kreisfreie Stadt|Landkreis|Stadtkreis|Kreis)$/, '').replace(/^Arr\. /, '').replace(/^Groot-/, '').replace(/\s*\(.*\)/, '').slice(0, 22); }
+
+// ---------- animation ----------
+function animate() { requestAnimationFrame(animate); if (S.flowstyle !== 'trips' || !overlay || !D.layers) return; S.time = (S.time + S.speed * .7) % D.period;
+  D.layers = D.layers.map(l => l.id === 'flows-trips' ? l.clone({ currentTime:S.time }) : l); overlay.setProps({ layers: D.layers }); }
+
+// ---------- tooltips ----------
+const tip = document.getElementById('tip');
+function showTip(info, html) { if (!info.object) { tip.style.display = 'none'; return; } tip.innerHTML = html; tip.style.display = 'block'; const r = tip.getBoundingClientRect(); const sb = document.querySelector('.sidebar').offsetWidth; const x = sb + info.x + 16, y = info.y + 16; tip.style.left = Math.min(x, window.innerWidth - r.width - 20) + 'px'; tip.style.top = Math.min(y, window.innerHeight - r.height - 20) + 'px'; }
+function hoverFlow(info) { const f = info.object; if (!f) return showTip(info); const o = D.R[f.o], d = D.R[f.d];
+  showTip(info, `<span class="tag">Flow · ${yearLabel()}</span><div class="t">${shortName(o.name)} → ${shortName(d.name)}</div>
+  <div class="r"><span>${CNAME[o.cc]||o.cc} → ${CNAME[d.cc]||d.cc}</span><b>${f.dist} km</b></div>
+  <div class="r"><span>Freight</span><b>${fmtT(tons(f))} / yr</b></div><div class="r"><span>Trucks</span><b>${fmtN(trucks(f))} / yr · ${Math.round(trucks(f)/250)} per day</b></div>
+  <div class="r"><span>Est. freight bill</span><b>${fmtE(cost(f))} / yr</b></div><div class="r"><span>Est. door-to-door</span><b>${days(f).toFixed(1)} days</b></div>
+  <div class="r"><span>2019 → 2030</span><b>${f.t19 ? ((f.t30-f.t19)/f.t19*100).toFixed(0) : '–'}%</b></div>`); }
+function hoverRegion(info) { const r = info.object; if (!r) return showTip(info); const y = S.year==='10'?'19':S.year;
+  showTip(info, `<span class="tag">Region · ${CNAME[r.cc]||r.cc}</span><div class="t">${r.name}</div>
+  <div class="r"><span>Outbound</span><b>${fmtT(r['out'+y])} / yr</b></div><div class="r"><span>Inbound</span><b>${fmtT(r['in'+y])} / yr</b></div>
+  <div class="r"><span>Cross-border share</span><b>${r.out19 ? Math.round(r.xout19/r.out19*100) : 0}%</b></div><div class="r"><span>Average haul</span><b>${r.avgkm} km</b></div>
+  <div class="r"><span>2019 → 2030</span><b>${r.out19 ? ((r.out30-r.out19)/r.out19*100).toFixed(0) : '–'}%</b></div><div class="r" style="color:#9a8b72;margin-top:4px">Click for top partners</div>`); }
+function hoverEdge(info) { const e = info.object; if (!e) return showTip(info); const v = S.year==='30' ? e[4] : e[3];
+  showTip(info, `<span class="tag">Highway segment</span><div class="t">${e[2]} km${e[5] ? ' · added link' : ''}</div><div class="r"><span>Trucks / yr</span><b>${fmtN(v)}</b></div><div class="r"><span>Trucks / day</span><b>${fmtN(v/365)}</b></div><div class="r"><span>2019 → 2030</span><b>${e[3] ? ((e[4]-e[3])/e[3]*100).toFixed(0) : '–'}%</b></div>`); }
+function hoverCountry(info) { const c = info.object; if (!c) return showTip(info);
+  showTip(info, `<span class="tag">Country pair</span><div class="t">${CNAME[c.o]||c.o} → ${CNAME[c.d]||c.d}</div><div class="r"><span>2019</span><b>${fmtT(c.t19)}</b></div><div class="r"><span>2030</span><b>${fmtT(c.t30)}</b></div><div class="r"><span>Trucks / yr</span><b>${fmtN(c.tr19)}</b></div>`); }
+function clickFlow(info) { if (info.object) select(info.object.o); }
+function yearLabel() { return '20'+S.year; }
+
+// ---------- selection ----------
+const selbox = document.getElementById('selbox');
+function select(id) { S.selected = id || null; if (!id) { selbox.style.display = 'none'; render(); return; } const r = D.R[id]; const top = D.rtop[id] || [];
+  selbox.style.display = 'block'; selbox.innerHTML = `<span class="x" id="selx">×</span><div class="s cart-h">${CNAME[r.cc]||r.cc} · top partners</div><div class="t">${r.name}</div>
+  <div class="r"><span>Outbound 2019</span><b>${fmtT(r.out19)}</b></div><div class="r"><span>Cross-border</span><b>${r.out19 ? Math.round(r.xout19/r.out19*100) : 0}%</b></div>
+  <div class="bars">${top.map(([d, t, km]) => { const dr = D.R[d]; return dr ? `<div class="bar" data-id="${d}"><div class="lbl"><b>${shortName(dr.name)} <span style="color:#9a8b72">${dr.cc}</span></b><span>${fmtT(t)} · ${km} km</span></div><div class="trk"><div class="fil" style="width:${t/top[0][1]*100}%"></div></div></div>` : ''; }).join('')}</div>`;
+  document.getElementById('selx').onclick = () => select(null);
+  selbox.querySelectorAll('.bar').forEach(b => b.onclick = () => { const d = D.R[+b.dataset.id]; map.flyTo({center:[(r.lng+d.lng)/2, (r.lat+d.lat)/2], zoom:Math.max(5, S.zoom), speed:.8}); });
+  render(); }
+
+// ---------- stats + bars + legend ----------
+function updateStats(flows) {
+  const t = flows.reduce((s, f) => s + tons(f), 0), c = flows.reduce((s, f) => s + cost(f), 0), km = t ? flows.reduce((s, f) => s + f.dist*tons(f), 0)/t : 0;
+  document.getElementById('st-tons').innerHTML = fmtT(t); document.getElementById('st-flows').innerHTML = flows.length + '<small>of ' + D.F.length + '</small>';
+  document.getElementById('st-dist').innerHTML = Math.round(km) + '<small>km</small>'; document.getElementById('st-cost').innerHTML = fmtE(c);
+  const top = [...flows].sort((a, b) => metricVal(b) - metricVal(a)).slice(0, 8), mx = top.length ? metricVal(top[0]) : 1;
+  document.getElementById('topbars').innerHTML = top.map(f => `<div class="bar" data-i="${f.i}"><div class="lbl"><b>${shortName(D.R[f.o].name)} → ${shortName(D.R[f.d].name)}</b><span>${fmtMetric(metricVal(f))}</span></div><div class="trk"><div class="fil" style="width:${metricVal(f)/mx*100}%"></div></div></div>`).join('');
+  document.querySelectorAll('#topbars .bar').forEach(b => b.onclick = () => { const f = D.F.find(x => x.i === +b.dataset.i), o = D.R[f.o], d = D.R[f.d]; map.flyTo({center:[(o.lng+d.lng)/2, (o.lat+d.lat)/2], zoom:6, speed:.9}); select(f.o); });
+}
+function legend(maxV) { const P = pal(); const g = s => `linear-gradient(90deg, ${s[0]}, ${s[1]}, ${s[2]})`;
+  document.getElementById('legend').innerHTML = `<div class="cart-h"><span class="orn">❖</span> Legend <span class="orn">❖</span></div><div class="h">${S.palette==='change' ? 'Change 2019 → 2030' : (S.metric==='tons'?'Tonnes':S.metric==='trucks'?'Trucks':S.metric==='cost'?'Est. cost':'Transit time')+' · '+yearLabel()}</div>
+  <div class="ramp" style="background:${g(S.palette==='change' ? CHANGE : P.flow)}"></div><div class="mm"><span>${S.palette==='change' ? '−4%' : 'small'}</span><span>${S.palette==='change' ? '+20%' : fmtMetric(maxV)}</span></div>
+  ${S.layers.network ? `<div class="h" style="margin-top:8px">Highway load</div><div class="ramp" style="background:${g(P.net)}"></div><div class="mm"><span>quiet</span><span>${fmtN(D.maxE/365)} trucks/day</span></div>` : ''}
+  ${S.layers.regions ? `<div class="row" style="margin-top:8px"><span style="width:12px;height:12px;border-radius:50%;background:rgba(${P.region},.25);border:1px solid rgb(${P.region});flex-shrink:0"></span>Region hub, sized by outbound tonnes</div>` : ''}`; }
+
+// ---------- story ----------
+function buildStory() {
+  const F = D.F, R = D.R;
+  const core = new Set(['DE','NL','BE','IT','FR','CH','AT']);
+  const coreShare = F.filter(f => core.has(R[f.o].cc) && core.has(R[f.d].cc)).reduce((s, f) => s + f.t19, 0) / F.reduce((s, f) => s + f.t19, 0);
+  const busiest = D.E.reduce((a, e) => e[3] > a[3] ? e : a);
+  const bN = D.N[busiest[0]];
+  const alpine = F.filter(f => (R[f.o].cc === 'IT') !== (R[f.d].cc === 'IT') && ['DE','CH','AT','FR'].includes(R[f.o].cc === 'IT' ? R[f.d].cc : R[f.o].cc)).sort((a, b) => b.t19 - a.t19);
+  const alpCost = alpine.reduce((s, f) => s + cost(f), 0), alpTons = alpine.reduce((s, f) => s + f.t19, 0);
+  const grow = D.CF.filter(c => c.t19 > 1e6).map(c => ({...c, g:(c.t30 - c.t19)/c.t19})).sort((a, b) => b.g - a.g);
+  const plde = D.CF.find(c => c.o === 'PL' && c.d === 'DE') || grow[0]; plde.g = (plde.t30 - plde.t19)/plde.t19;
+  const longest = [...F].sort((a, b) => b.dist*b.t19 - a.dist*a.t19)[0];
+  const total30 = (D.meta.tons30 - D.meta.tons19) / D.meta.tons19;
+  D.story = [
+    { n:'Chapter 1', h:'The spine of the continent', p:'Zoomed out, Europe\'s trucks trace one shape: a dense band from the Dutch ports through the Rhine and over the Alps into northern Italy. Everything else hangs off it.', num:Math.round(coreShare*100)+'%', cap:'of tonnage in the lanes shown starts and ends inside DE, NL, BE, FR, CH, AT and IT',
+      cam:{center:[8.5, 49.5], zoom:4.0, pitch:0, bearing:0}, set:{flowstyle:'route', year:'19', metric:'tons', layers:{network:true, regions:true, country:true, labels:true, flows:true}, country:''} },
+    { n:'Chapter 2', h:'Where the highway is busiest', p:'Highway load is drawn from the same flows, routed over the E-road network. The brightest segment carries more than <b>'+fmtN(busiest[3]/365)+' trucks a day</b>. Hover any segment to read its load.', num:fmtN(busiest[3]), cap:'trucks per year on the busiest '+busiest[2]+' km of E-road',
+      cam:{center:bN, zoom:7.2, pitch:45, bearing:-15}, set:{flowstyle:'route', year:'19', metric:'trucks', layers:{network:true, regions:false, country:false, labels:true, flows:false}, country:''} },
+    { n:'Chapter 3', h:'Crossing the Alps', p:'Italy trades with Germany, Switzerland, Austria and France across a handful of passes. Switch the measure to cost and the same lanes re-rank: long, slow, expensive.', num:fmtE(alpCost), cap:'illustrative yearly freight bill for '+fmtT(alpTons)+' crossing the Alps in the top lanes',
+      cam:{center:[10.2, 46.4], zoom:6.0, pitch:55, bearing:10}, set:{flowstyle:'arc', year:'19', metric:'cost', layers:{network:true, regions:true, country:false, labels:true, flows:true}, country:'IT'} },
+    { n:'Chapter 4', h:'East meets West', p:'The fastest-growing big lanes run between Poland and Germany. Warm lanes grow faster than the European average by 2030, cool lanes slower.', num:'+'+Math.round(plde.g*100)+'%', cap:'growth 2019 → 2030, Poland → Germany ('+fmtT(plde.t19)+' → '+fmtT(plde.t30)+')',
+      cam:{center:[15.5, 52.0], zoom:5.4, pitch:30, bearing:0}, set:{flowstyle:'route', palette:'change', year:'30', metric:'tons', layers:{network:false, regions:true, country:false, labels:true, flows:true}, country:''} },
+    { n:'Chapter 5', h:'Watch it move', p:'Each streak is traffic on one of the top routed lanes, moving at a uniform pace along its real E-road path. Speed is set in the Design tab. The longest big lane runs <b>'+longest.dist+' km</b> from '+shortName(R[longest.o].name)+' to '+shortName(R[longest.d].name)+'.', num:'+'+Math.round(total30*100)+'%', cap:'more tonnes on the road by 2030 across all 1.5 million flows',
+      cam:{center:[9.0, 49.5], zoom:5.0, pitch:45, bearing:-10}, set:{flowstyle:'trips', year:'19', metric:'tons', layers:{network:true, regions:false, country:false, labels:false, flows:true}, country:''} },
+    { n:'Chapter 6', h:'Your data, this treatment', p:'Swap the freight for shipments, store deliveries, patient transfers or service calls. Every layer here (routed paths, load, hubs, change over time, cost and time estimates) is driven by a plain table of origin, destination and quantity.', num:'3', cap:'columns needed to start: from, to, how much',
+      cam:{center:[6.0, 50.0], zoom:4.2, pitch:0, bearing:0}, set:{flowstyle:'arc', year:'19', metric:'tons', layers:{network:true, regions:true, country:true, labels:true, flows:true}, country:''} }
+  ];
+  document.getElementById('chapters').innerHTML = D.story.map((c, i) => `<div class="chapter" data-i="${i}"><div class="n">Chapter ${ROMAN[i]}</div><h3>${c.h}</h3><p>${c.p}</p><div class="insight"><div class="num">${c.num}</div><div class="cap">${c.cap}</div></div></div>`).join('');
+  document.querySelectorAll('.chapter').forEach(el => el.onclick = () => setChapter(+el.dataset.i));
+  document.getElementById('prev').onclick = () => setChapter((S.chapter + D.story.length - 1) % D.story.length);
+  document.getElementById('next').onclick = () => setChapter((S.chapter + 1) % D.story.length);
+}
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+function setChapter(i, fly = true) { S.chapter = i; const c = D.story[i];
+  const plate = document.getElementById('plate'); plate.classList.remove('show');
+  setTimeout(() => { plate.innerHTML = `<div class="cart-h"><span class="orn">❖</span> Chapter ${ROMAN[i]} <span class="orn">❖</span></div><h4>${c.h}</h4><div class="num">${c.num}</div><div class="cap">${c.cap}</div>`; plate.classList.add('show'); }, fly ? 450 : 0);
+  document.querySelectorAll('.chapter').forEach((el, j) => el.classList.toggle('active', j === i));
+  const active = document.querySelector('.chapter.active'); if (active && fly) active.scrollIntoView({behavior:'smooth', block:'nearest'});
+  Object.assign(S, c.set); S.layers = {...c.set.layers}; S.palette = c.set.palette || S.basePalette; document.getElementById('country').value = c.set.country || ''; syncUI();
+  if (fly) map.flyTo({...c.cam, speed:.7, curve:1.4}); else map.jumpTo(c.cam);
+  tip.style.display = 'none'; select(null); }
+
+// ---------- UI wiring ----------
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t)); document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + t.dataset.tab)); });
+function pillGroup(id, key, after) { const g = document.getElementById(id); g.querySelectorAll('.pill').forEach(p => p.onclick = () => { S[key] = p.dataset.v; g.querySelectorAll('.pill').forEach(x => x.classList.toggle('on', x === p)); if (after) after(); render(); }); }
+pillGroup('year', 'year'); pillGroup('metric', 'metric'); pillGroup('flowstyle', 'flowstyle');
+pillGroup('palette', 'palette', () => { if (S.palette !== 'change') S.basePalette = S.palette; });   // remembered so chapters can restore it
+document.getElementById('basemap').onchange = e => { S.basemap = e.target.value; applyTheme(); map.setStyle(BASEMAPS[S.basemap].url); render(); };
+document.getElementById('country').onchange = e => { S.country = e.target.value; render(); };
+document.getElementById('xborder').onchange = e => { S.xborder = e.target.checked; render(); };
+document.getElementById('mintons').oninput = e => { S.minPct = +e.target.value; document.getElementById('mintons-val').textContent = S.minPct ? '≥ ' + fmtT(D.minT + (D.maxT - D.minT)*Math.pow(S.minPct/100, 2)) : 'any'; render(); };
+['network','regions','country','labels','flows'].forEach(k => document.getElementById('l-' + k).onchange = e => { S.layers[k] = e.target.checked; render(); });
+document.getElementById('l-animate').onchange = e => S.animate = e.target.checked;
+document.getElementById('speed').oninput = e => { S.speed = +e.target.value; document.getElementById('speed-val').textContent = S.speed; };
+function syncUI() { // push state into controls
+  const on = (id, v) => document.querySelectorAll('#' + id + ' .pill').forEach(p => p.classList.toggle('on', p.dataset.v === String(v)));
+  on('year', S.year); on('metric', S.metric); on('flowstyle', S.flowstyle); on('palette', S.palette); document.getElementById('basemap').value = S.basemap;
+  Object.keys(S.layers).forEach(k => document.getElementById('l-' + k).checked = S.layers[k]);
+}
+</script>
+</body>
+</html>
