@@ -417,7 +417,7 @@ Promise.all(['nodes','network','regions','flows_top','country_flows','region_top
 .then(([nodes, network, regions, flows, cflows, rtop, meta, commodity, sea, polys]) => {
   D.N = nodes; D.meta = meta; D.rtop = rtop; D.CM = commodity; D.polys = polys;
   // sea: ports, anchors and routed lanes. Inbound lanes run anchor -> port so ships move the right way.
-  D.sea = sea; D.port = {}; sea.ports.forEach(p => D.port[p.id] = p); D.maxPort = Math.max(...sea.ports.map(p => p.in + p.out));
+  D.sea = sea; D.port = {}; sea.ports.forEach(p => D.port[p.id] = p); D.maxPort = Math.max(...sea.ports.map(p => p.in + p.out)); D.portsByT = [...sea.ports].sort((a, b) => (b.in + b.out) - (a.in + a.out));
   D.seaLanes = sea.lanes.map((l, i) => { const path = sea.routes[l.p + '|' + l.a]; const coords = l.dir === 'in' ? [...path].reverse() : path;
     let acc = 0; const ts = coords.map((c, j) => { if (j) acc += dist(coords[j-1], c); return acc; }); return {...l, i, coords, ts, len:acc}; });
   D.maxSea = Math.max(...D.seaLanes.map(l => l.kt)); D.seaByPort = {}; D.seaLanes.forEach(l => (D.seaByPort[l.p] = D.seaByPort[l.p] || []).push(l));
@@ -437,8 +437,8 @@ Promise.all(['nodes','network','regions','flows_top','country_flows','region_top
     for (let t0 = phase - gap; t0 < D.period; t0 += gap) for (let k = 0; k < n; k++) D.trips.push({ f, k, ts: f.ts.map(v => v + t0 + k * 28) }); });
   // ships: one or two vessels per lane, on the same clock but covering a third of a truck's distance per tick
   D.ships = []; const SHIP = 3;
-  D.seaLanes.forEach(l => { const n = 1 + (l.kt > D.maxSea * .15 ? 1 : 0); const gap = Math.max(l.len / SHIP + 400, 600); const phase = Math.random() * gap;
-    for (let t0 = phase - gap; t0 < D.period; t0 += gap) for (let k = 0; k < n; k++) D.ships.push({ l, ts: l.ts.map(v => v / SHIP + t0 + k * 120) }); });
+  D.seaLanes.forEach(l => { const n = 1 + (l.kt > D.maxSea * .15 ? 1 : 0); const gap = Math.max(l.len / SHIP + 300, 500); const phase = Math.random() * gap;
+    for (let t0 = phase - gap; t0 < D.period; t0 += gap) for (let k = 0; k < n; k++) D.ships.push({ l, ts: l.ts.map(v => v / SHIP + t0 + k * 160) }); });
   D.maxE = Math.max(...D.E.map(e => e.t19));
   D.edgeByNodes = {}; D.E.forEach(e => { D.edgeByNodes[e.a + '-' + e.b] = e; D.edgeByNodes[e.b + '-' + e.a] = e; });
   // per-polygon aggregates for the fill layer (a polygon can hold several ETISplus zones)
@@ -601,20 +601,26 @@ function render() {
   const seaLanes = visibleSeaLanes(); D.seaVis = seaLanes;
   if (S.layers.sea && seaLanes.length) { const maxK = Math.max(1, ...seaLanes.map(seaVal));
     const seaHi = l => S.selectedPort && l.p === S.selectedPort;
-    const scol = l => seaHi(l) ? [...hiRGB, 255] : [...ramp(P.sea, .3 + .7*Math.sqrt(seaVal(l)/maxK)), S.selectedPort ? 45 : 150];
-    const swidth = l => 1 + 5*Math.sqrt(seaVal(l)/maxK);
-    const strig = [S.seaDir, S.seaCargo, S.basemap, S.selectedPort, S.zoom < 4.4, S.zoom < 5.5];
+    const seaK = l => seaVal(l) / maxK;
+    const far = l => l.km > 3500 ? .5 : 1;                                   // transoceanic lanes recede so the coastal web reads first
+    const zf = z < 5 ? 1 : z < 7 ? .7 : .5;                                   // the shipping graph is coarse: thin the lanes as you zoom in
+    const scol = l => seaHi(l) ? [...hiRGB, 255] : [...ramp(P.sea, .15 + .85*Math.sqrt(seaK(l))), Math.round((45 + 180*Math.sqrt(seaK(l))) * far(l) * (S.selectedPort ? .3 : 1))];
+    const swidth = l => (.6 + 4.5*Math.sqrt(seaK(l))) * far(l) * zf;
+    const strig = [S.seaDir, S.seaCargo, S.basemap, S.selectedPort, zf];
     if (S.flowstyle === 'trips') {
-      layers.push(new PathLayer({ id:'sea-base', data:seaLanes, getPath:l => l.coords, getColor:l => { const c = scol(l); return [c[0], c[1], c[2], c[3]*.2]; }, getWidth:swidth, widthUnits:'pixels', widthMinPixels:.6, pickable:true, onHover:hoverSea, onClick:info => info.object && selectPort(info.object.p), updateTriggers:{getColor:strig, getWidth:strig} }));
-      const shown = new Set(seaLanes); const ships = D.ships.filter(s => shown.has(s.l));
-      layers.push(new TripsLayer({ id:'sea-ships', data:ships, getPath:s => s.l.coords, getTimestamps:s => s.ts, getColor:s => { const c = scol(s.l); return [c[0], c[1], c[2], 255]; }, getWidth:s => 3 + swidth(s.l)*.6, widthUnits:'pixels', widthMinPixels:3, capRounded:true, jointRounded:true,
-        trailLength:30 + 6*S.speed, currentTime:S.time, fadeTrail:true, pickable:false, updateTriggers:{getColor:strig, getWidth:strig} }));
-    } else layers.push(new PathLayer({ id:'sea-lanes', data:seaLanes, getPath:l => l.coords, getColor:scol, getWidth:swidth, widthUnits:'pixels', widthMinPixels:.8, capRounded:true, jointRounded:true,
+      layers.push(new PathLayer({ id:'sea-base', data:seaLanes, getPath:l => l.coords, getColor:l => { const c = scol(l); return [c[0], c[1], c[2], c[3]*.3]; }, getWidth:swidth, widthUnits:'pixels', widthMinPixels:.6, pickable:true, onHover:hoverSea, onClick:info => info.object && selectPort(info.object.p), updateTriggers:{getColor:strig, getWidth:strig} }));
+      const shown = new Set(seaLanes); const ships = D.ships.filter(s => shown.has(s.l)); const shipRGB = hex2rgb(P.sea[2]);
+      layers.push(new TripsLayer({ id:'sea-ships', data:ships, getPath:s => s.l.coords, getTimestamps:s => s.ts, getColor:s => seaHi(s.l) ? [...hiRGB, 255] : [...shipRGB, 225], getWidth:s => 2.5 + swidth(s.l)*.6, widthUnits:'pixels', widthMinPixels:2.5, capRounded:true, jointRounded:true,
+        trailLength:28 + 8*S.speed, currentTime:S.time, fadeTrail:true, pickable:false, updateTriggers:{getColor:strig, getWidth:strig} }));
+    } else layers.push(new PathLayer({ id:'sea-lanes', data:seaLanes, getPath:l => l.coords, getColor:scol, getWidth:swidth, widthUnits:'pixels', widthMinPixels:.6, capRounded:true, jointRounded:true,
       pickable:true, onHover:hoverSea, onClick:info => info.object && selectPort(info.object.p), updateTriggers:{getColor:strig, getWidth:strig}, transitions:trans })); }
-  if (S.layers.ports) { const seaRGB = hex2rgb(P.sea[1]);
-    layers.push(new ScatterplotLayer({ id:'ports', data:D.sea.ports, getPosition:p => [p.lng, p.lat], getRadius:p => 2.5 + 16*Math.sqrt((p.in + p.out)/D.maxPort), radiusUnits:'pixels', radiusMinPixels:2, radiusMaxPixels:30,
-      getFillColor:p => p.id === S.selectedPort ? [...hiRGB, 210] : [...seaRGB, 60], getLineColor:p => p.id === S.selectedPort ? [...hiRGB, 255] : [...seaRGB, 220], lineWidthUnits:'pixels', getLineWidth:p => p.id === S.selectedPort ? 2 : 1.2, stroked:true, filled:true,
-      pickable:true, onHover:hoverPort, onClick:info => info.object && selectPort(info.object.id), updateTriggers:{getFillColor:[S.selectedPort, S.basemap], getLineColor:[S.selectedPort, S.basemap], getLineWidth:[S.selectedPort]}, transitions:trans })); }
+  if (S.layers.ports) { const seaRGB = hex2rgb(P.sea[1]); const grow = 1 + Math.max(0, Math.min(1, (z - 4.5) / 3)) * .5;
+    const portsShown = D.portsByT.slice(0, z < 4.5 ? 80 : z < 5.5 ? 180 : 460);   // fewer, bigger ports when zoomed out
+    layers.push(new ScatterplotLayer({ id:'ports', data:portsShown, getPosition:p => [p.lng, p.lat], getRadius:p => (2 + 13*Math.sqrt((p.in + p.out)/D.maxPort)) * grow, radiusUnits:'pixels', radiusMinPixels:2, radiusMaxPixels:28,
+      getFillColor:p => p.id === S.selectedPort ? [...hiRGB, 210] : [...seaRGB, 75], getLineColor:p => p.id === S.selectedPort ? [...hiRGB, 255] : [...seaRGB, 230], lineWidthUnits:'pixels', getLineWidth:p => p.id === S.selectedPort ? 2 : 1.2, stroked:true, filled:true,
+      pickable:true, onHover:hoverPort, onClick:info => info.object && selectPort(info.object.id), updateTriggers:{getFillColor:[S.selectedPort, S.basemap], getLineColor:[S.selectedPort, S.basemap], getLineWidth:[S.selectedPort], getRadius:[grow]}, transitions:trans }));
+    if (z >= 4.4) layers.push(new TextLayer({ id:'port-labels', data:D.portsByT.slice(0, z < 5.5 ? 16 : z < 7 ? 45 : 120), getPosition:p => [p.lng, p.lat], getText:p => p.name, getSize:z < 6 ? 11 : 12, getColor:[...hex2rgb(P.sea[2]), 235], getPixelOffset:p => [0, 10 + (2 + 13*Math.sqrt((p.in + p.out)/D.maxPort)) * grow],
+      fontFamily:'Josefin Sans, sans-serif', fontWeight:600, characterSet:'auto', outlineWidth:3, outlineColor:[...hex2rgb(P.halo), 220], fontSettings:{sdf:true}, getTextAnchor:'middle', getAlignmentBaseline:'top', updateTriggers:{getColor:[S.basemap], getPixelOffset:[grow]} })); }
 
   // 4. region hubs
   if (S.layers.regions) { const maxR = Math.max(...D.regions.map(r => r['out'+yk]));
