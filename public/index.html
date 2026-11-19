@@ -10,8 +10,8 @@
 <meta property="og:title" content="In Transit">
 <meta property="og:description" content="Goods on the move, mapped. 1.5 million European road-freight lanes and the sea lanes that feed them as an interactive, layered map with cost, time and a story to follow.">
 <meta property="og:image" content="https://intransit.devlab502.net/og.jpg">
-<meta property="og:image:width" content="800">
-<meta property="og:image:height" content="420">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="In Transit">
 <meta name="twitter:description" content="Goods on the move, mapped. 1.5 million European road-freight lanes and the sea lanes that feed them as an interactive, layered map.">
@@ -249,6 +249,9 @@ window.coreData = Promise.all(['nodes.json', 'network.json', 'regions.json', 'fl
   .maplibregl-ctrl-attrib { font-size:10px; }
   .loading { position:absolute; inset:0; left:var(--sidebar); z-index:30; display:flex; align-items:center; justify-content:center; background:var(--cream); color:var(--ink-3); font-family:'Josefin Sans',sans-serif; letter-spacing:4px; text-transform:uppercase; font-size:12px; }
   @media (max-width: 900px) { :root { --sidebar:0px; } .sidebar { display:none; } }
+  /* ?clean=1: the map alone, for screenshots and embeds */
+  body.clean { --sidebar:0px; }
+  body.clean .sidebar, body.clean .zoombadge, body.clean .legend, body.clean .plate, body.clean .selbox, body.clean .intro, body.clean .intro-bg, body.clean .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group { display:none !important; }
 </style>
 </head>
 <body data-theme="panel">
@@ -428,6 +431,10 @@ const RATE = (cc) => ({CH:.19,NO:.18,DK:.16,SE:.16,FI:.16,IS:.16,DE:.14,AT:.14,N
 const EU = new Set('AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE CH NO LI IS'.split(' '));
 const CNAME = {AT:'Austria',BE:'Belgium',BG:'Bulgaria',CH:'Switzerland',CZ:'Czechia',DE:'Germany',DK:'Denmark',EE:'Estonia',ES:'Spain',FI:'Finland',FR:'France',GR:'Greece',HR:'Croatia',HU:'Hungary',IE:'Ireland',IT:'Italy',LT:'Lithuania',LU:'Luxembourg',LV:'Latvia',NL:'Netherlands',NO:'Norway',PL:'Poland',PT:'Portugal',RO:'Romania',SE:'Sweden',SI:'Slovenia',SK:'Slovakia',UK:'United Kingdom',RS:'Serbia',BA:'Bosnia',MK:'N. Macedonia',ME:'Montenegro',TR:'Türkiye',UA:'Ukraine',BY:'Belarus',RU:'Russia',KZ:'Kazakhstan',MA:'Morocco',LI:'Liechtenstein',AD:'Andorra',SM:'San Marino',GI:'Gibraltar',CY:'Cyprus',MD:'Moldova',AL:'Albania',XK:'Kosovo'};
 
+// ---------- URL options ----------
+const Q = new URLSearchParams(location.search), HAD_VIEW = /^#\d/.test(location.hash);
+if (Q.get('clean') === '1') document.body.classList.add('clean');
+
 // ---------- state ----------
 const S = { ready:false, year:2019, metric:'tons', country:'', xborder:false, minPct:0, basemap:MB_TOKEN ? 'decimal' : 'night', flowstyle:'route', palette:'ember', basePalette:'ember',
   layers:{network:true, regions:true, country:true, labels:true, flows:true, relief:true, sea:true, ports:true}, fill:'none', seaDir:'both', seaCargo:'all',
@@ -527,7 +534,7 @@ function initMap() {
     if (!grp || grp.label !== b.group) { grp = document.createElement('optgroup'); grp.label = b.group; sel.appendChild(grp); }
     const o = document.createElement('option'); o.value = k; o.textContent = b.label; grp.appendChild(o); });
   sel.value = S.basemap; applyTheme();
-  map = new maplibregl.Map({ container:'map', style:BASEMAPS[S.basemap].url, center:[9.5, 49.5], zoom:4, minZoom:2.5, maxZoom:12, maxPitch:70, attributionControl:{compact:true}, transformRequest:MB_TOKEN ? mapboxTransform : undefined });
+  map = new maplibregl.Map({ container:'map', style:BASEMAPS[S.basemap].url, center:[9.5, 49.5], zoom:4, minZoom:2.5, maxZoom:12, maxPitch:70, hash:true, attributionControl:{compact:true}, transformRequest:MB_TOKEN ? mapboxTransform : undefined });
   map.addControl(new maplibregl.NavigationControl({showCompass:false}), 'bottom-right');
   overlay = new MapboxOverlay({ interleaved:false, layers:[] });
   map.addControl(overlay);
@@ -557,8 +564,9 @@ function applyRelief() { let st; try { st = map && map.getStyle(); } catch (e) {
 // ---------- first-visit intro ----------
 const INTRO_KEY = 'intransit-intro-seen';
 function showIntro() {
+  if (Q.get('intro') === '0' || Q.get('clean') === '1') return;
   let seen = false; try { seen = localStorage.getItem(INTRO_KEY) === '1'; } catch (e) {}
-  if (seen && !new URLSearchParams(location.search).has('intro')) return;
+  if (seen && !Q.has('intro')) return;
   document.getElementById('intro-bg').classList.add('show'); document.getElementById('intro').classList.add('show');
 }
 function hideIntro(tab) {
@@ -884,7 +892,7 @@ function buildStory() {
 }
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 function plateHTML(i) { const c = D.story[i]; return `<div class="cart-h"><span class="orn">❖</span> Chapter ${ROMAN[i]} <span class="orn">❖</span></div><h4>${c.h}</h4><div class="num">${c.num}</div><div class="cap">${c.cap}</div><span class="kick">${c.k}</span>`; }
-function setChapter(i, fly = true) { S.chapter = i; const c = D.story[i]; stopYear(); qEl.value = '';
+function setChapter(i, fly = true, keepCam = false) { S.chapter = i; const c = D.story[i]; stopYear(); qEl.value = '';
   const plate = document.getElementById('plate'); plate.classList.remove('show');
   setTimeout(() => { plate.innerHTML = plateHTML(S.chapter); plate.classList.add('show'); }, fly ? 450 : 0);
   document.querySelectorAll('.chapter').forEach((el, j) => el.classList.toggle('active', j === i));
@@ -892,7 +900,7 @@ function setChapter(i, fly = true) { S.chapter = i; const c = D.story[i]; stopYe
   const L = c.set.layers; Object.assign(S, c.set); S.layers = {...L, relief: L.relief ?? S.layers.relief, sea: L.sea ?? S.layers.sea, ports: L.ports ?? S.layers.ports};
   S.fill = c.set.fill || 'none'; if (S.fill !== 'none') ensurePolys().then(render);
   if (c.set.seaDir === undefined) S.seaDir = 'both'; S.palette = c.set.palette || S.basePalette; document.getElementById('country').value = c.set.country || ''; syncUI(); applyRelief();
-  if (fly) map.flyTo({...c.cam, speed:.7, curve:1.4}); else map.jumpTo(c.cam);
+  if (fly) map.flyTo({...c.cam, speed:.7, curve:1.4}); else if (!keepCam) map.jumpTo(c.cam);
   tip.style.display = 'none'; select(null);
   if (fly && c.after) c.after(); }
 
@@ -958,7 +966,8 @@ document.addEventListener('keydown', e => { if (e.key === '/' && !/INPUT|SELECT|
 initMap();
 const mapReady = new Promise(res => { map.once('load', res); setTimeout(res, 10000); });
 const coreReady = coreData.then(setupCore);
-Promise.all([coreReady, mapReady]).then(() => { buildStory(); S.ready = true; document.getElementById('loading').style.display = 'none'; setChapter(0, false); showIntro(); loadDeferred(); })
+Promise.all([coreReady, mapReady]).then(() => { buildStory(); S.ready = true; document.getElementById('loading').style.display = 'none';
+  setChapter(Math.min(D.story.length, Math.max(1, +Q.get('ch') || 1)) - 1, false, HAD_VIEW); showIntro(); loadDeferred(); })
   .catch(err => { document.getElementById('loading').textContent = 'Could not load the data. Please reload.'; console.error(err); });
 </script>
 </body>

@@ -11,6 +11,8 @@ npm run dev
 
 Then open http://127.0.0.1:5186/. The `.claude/launch.json` config named `dev` does the same thing for the in-app preview. Add `?intro=1` to see the first-visit overlay again.
 
+URL options: `?ch=4` opens on chapter four, `?intro=0` skips the intro, `?clean=1` shows the map alone (used for screenshots), and the map view is kept in the URL hash (`#zoom/lat/lng/bearing/pitch`) so any view can be shared.
+
 ## Deploy
 
 Cloudflare Workers with Static Assets, custom domain intransit.devlab502.net (declared in `wrangler.toml`). `worker.js` adds the fleet security headers and CSP. GitHub Actions deploys on push to main; by hand:
@@ -19,7 +21,11 @@ Cloudflare Workers with Static Assets, custom domain intransit.devlab502.net (de
 npm run deploy
 ```
 
-The share card is `public/og.jpg` (a screenshot of the Decimal continental view, 800×420). Replace it with a 1200×630 render when there is a better one.
+The share card is `public/og.jpg`, 1200×630, taken with headless Chrome from the clean view:
+
+```bash
+chrome --headless=new --enable-unsafe-swiftshader --use-angle=swiftshader --hide-scrollbars --window-size=1200,630 --virtual-time-budget=30000 --screenshot=og.png "http://127.0.0.1:5186/?clean=1&ch=1#4.0/50.0/8.5"
+```
 
 ## What's in here
 
