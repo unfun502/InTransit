@@ -54,7 +54,9 @@ The raw flow file is 2.8 GB (1.5 million region-to-region flows with routed E-ro
 | `edge_profiles.json` | Per highway segment, from all 1.5M flows: total tonnes, tonnes by origin country (top 6), top 5 lanes. Loaded on first segment click |
 | `sea.json` | Eurostat `mar_go_am_<cc>` 2019 for 25 reporting countries: main ports (coordinates from UN/LOCODE, gaps geocoded), inbound/outbound tonnes by cargo type, and port-to-partner-area lanes routed over sea lanes with `searoute`. Partners are coastal areas, so each lane ends at a hand-picked anchor port (`scripts/sea_anchors.py`) |
 
-The scripts that build these live in `scripts/` (`prep.py` and `fixpaths.py` for the Fraunhofer cut, `polygons.py`, `commodity.py`, `profiles.py`, and `sea_decode.py` + `sea_build.py` for the maritime layer, which needs `pip install searoute`). Sources go in `_dl/` (git-ignored): the Fraunhofer zip, GISCO NUTS GeoJSON, the Eurostat exports and the UN/LOCODE list.
+Load order: `nodes`, `network`, `regions`, `flows_top`, `country_flows` and `meta` start downloading in `<head>` alongside the map libraries, and the first view draws when they and the base map are in. `sea`, `region_top` and `commodity` follow after that first render, `regions.geojson` loads when a region fill is first used, `edge_profiles` on the first segment click, and the animation arrays are built the first time Moving trucks is shown. Data requests carry `?v=<DATA_V>`; bump `DATA_V` in `index.html` whenever a data file changes, because `/data/` is cached for a day.
+
+The scripts that build these live in `scripts/` (`prep.py` and `fixpaths.py` for the Fraunhofer cut, `polygons.py`, `commodity.py`, `profiles.py`, `enrich.py` (adds NUTS codes to regions and the busiest segment's profile to meta), and `sea_decode.py` + `sea_build.py` for the maritime layer, which needs `pip install searoute`). Sources go in `_dl/` (git-ignored): the Fraunhofer zip, GISCO NUTS GeoJSON, the Eurostat exports and the UN/LOCODE list.
 
 Sea passage time and freight bill are illustrative, like the road ones: route km at 14 knots, and tonnes × km × a flat €/tonne-km.
 

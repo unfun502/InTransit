@@ -1,7 +1,7 @@
 # CLAUDE.md — In Transit
 
 ## What this app does
-Interactive map of goods on the move, built as a data-viz and mapping demo for prospective clients. First dataset: 1.5 million modeled European road-freight flows (Fraunhofer ISI, ETISplus-based, CC BY 4.0), routed over the E-road network, with 2010/2019/2030 tonnage and trucks. Features: story chapters with fly-tos and on-map callouts, routed / arc / animated-convoy flow rendering, highway load, region hubs with top partners, year and measure switches, illustrative cost and transit-time estimates, and a dozen switchable base maps with two chrome themes.
+Interactive map of goods on the move, built as a data-viz and mapping demo for prospective clients. First dataset: 1.5 million modeled European road-freight flows (Fraunhofer ISI, ETISplus-based, CC BY 4.0), routed over the E-road network, with 2010/2019/2030 tonnage and trucks. Features: seven story chapters whose figures are computed from the data, with fly-tos and on-map callouts, region and port search, a 2010 to 2030 year scrub (interpolated between the three data years), sea lanes and ports, region fills, corridor profiles, routed / arc / animated-convoy flow rendering, highway load, region hubs with top partners, year and measure switches, illustrative cost and transit-time estimates, and a dozen switchable base maps with two chrome themes.
 
 ## Tech stack
 Plain HTML/CSS/JS, single file (`public/index.html`), no build step. MapLibre GL 4 (cdnjs) for the base map, deck.gl 9 (unpkg) for data layers. Google Fonts. Cloudflare Workers with Static Assets.
